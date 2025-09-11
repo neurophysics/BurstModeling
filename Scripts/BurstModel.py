@@ -1,0 +1,263 @@
+import numpy as np
+import tensorflow as tf
+from scipy import signal as sig
+
+
+class BurstModel:
+
+    def __init__(self, data_t_medium_ms, sigma_medium_trials, burst_win_ms, sigma_sim_offset_ms, srate, seed=2137):
+
+        self.data_t_medium_ms_tf = tf.constant(data_t_medium_ms)
+        self.sigma_medium_trials_tf = tf.constant(sigma_medium_trials)
+        self.sigma_medium_trials_er_tf = tf.constant(sigma_medium_trials.mean(-1))
+    
+        self.burst_win_ms = burst_win_ms
+        self.burst_mt_smpl = [np.nonzero(data_t_medium_ms == burst_win_ms[0])[0][0],
+                              np.nonzero(data_t_medium_ms == burst_win_ms[1])[0][0]]
+        self.burst_mt_smpl = np.array(self.burst_mt_smpl)
+
+        self.burst_sim_mt_smpl = np.array(self.burst_mt_smpl)+sigma_sim_offset_ms*srate//1000
+
+        self.tukey_win = sig.windows.tukey(np.diff(self.burst_mt_smpl)[0], 0.2)
+        self.tukey_win_err = sig.windows.tukey(np.diff(self.burst_mt_smpl)[0], 0.4)
+        self.tukey_win_tf = tf.constant(self.tukey_win)
+        self.tukey_win_err_tf = tf.constant(self.tukey_win_err)
+
+        # set gaussian distributions for the burst variability
+        rng = np.random.default_rng(seed=seed)
+        self.randn_lcav = rng.standard_normal(sigma_medium_trials.shape[-1]) # later component amplitude variability
+        self.randn_lclv = rng.standard_normal(sigma_medium_trials.shape[-1]) # later component latency variability
+
+        self.randn_ecav = rng.standard_normal(sigma_medium_trials.shape[-1]) # earlier component amplitude variability
+        self.randn_eclv = rng.standard_normal(sigma_medium_trials.shape[-1]) # earlier component latency variability
+
+        # latency variability constants
+        self.cmp_offset = 100
+        comp_len = np.diff(self.burst_mt_smpl)[0]
+        n_trials = sigma_medium_trials.shape[-1]
+
+        self.cols_range = tf.range(comp_len, dtype='float64')
+        self.tf_offset_zeros = tf.zeros(self.cmp_offset, dtype='complex128')
+        self.tf_trials_ones = tf.ones([n_trials, 1], 'complex128')
+        self.rows = tf.range(n_trials)
+        self.rows = tf.repeat(self.rows, comp_len)
+        self.rows = tf.reshape(self.rows, (-1, comp_len))
+
+    def distr_transform_pow(self, distr, power):
+        return tf.math.sign(distr)*((tf.math.abs(distr)+1)**power-1)
+    
+    def distr_transform_tuk(self, distr, h):
+        return distr*tf.math.exp((h*distr**2)/2)
+
+    # calculate output of the simulated burst model
+    def calculate_model_output_raw(self, div_steep, div_offset_ms, ecavs, eclvs, lcavs, lclvs):
+
+        # calculate division curve
+        exponent = (self.data_t_medium_ms_tf - div_offset_ms) * div_steep
+        division_curve = tf.math.sigmoid(exponent)
+
+
+        # extract later component
+        later_comp_sigma_er_long = self.sigma_medium_trials_er_tf*tf.cast(division_curve, 'complex128')
+        later_comp_sigma_raw_er = later_comp_sigma_er_long[self.burst_mt_smpl[0]:self.burst_mt_smpl[1]]
+        later_comp_sigma_er = later_comp_sigma_raw_er*tf.cast(self.tukey_win_tf, 'complex128')
+
+        #pow_randn_lclv = self.distr_transform_pow(self.randn_lclv, powl)
+
+        # add latency variability using interpolation method
+        later_comp_sigma_out = self.add_latency_variability(later_comp_sigma_raw_er, self.randn_lclv, lclvs)
+
+        # add latency variability using phase shift
+        #later_comp_phase = tf.transpose([tf.math.exp(1j * tf.cast(randn_lclv * lclvs, 'complex128'))])
+        #later_comp_sigma_out = tf.tensordot(later_comp_phase, [later_comp_sigma_er], axes=1)
+
+        # calculate scaler for later component base amplitude
+        # to compensate the effect of added latency variability on the amplitude
+        # later component amplitude base scaler
+        lcabs = (tf.reduce_mean(tf.math.abs(later_comp_sigma_er)) / 
+                tf.reduce_mean(tf.math.abs(tf.reduce_mean(later_comp_sigma_out, axis=0))))
+
+        # calculate amplitude of later component
+        # prevent the amplitude to go below 0
+        #pow_randn_lcav = self.distr_transform_pow(self.randn_lcav, powa)
+        #lcav_comb = pow_randn_lcav*lcavs
+        lcav_comb = self.randn_lcav*lcavs
+        #lcav_comb = lcav_comb - tf.math.reduce_mean(lcav_comb)
+        later_comp_ampl = lcabs+lcav_comb
+        later_comp_ampl = tf.math.softplus(later_comp_ampl*5)/5
+        later_comp_ampl = tf.cast(later_comp_ampl, 'complex128')
+
+        # add amplitude variability
+        later_comp_sigma_out = tf.transpose(tf.transpose(later_comp_sigma_out) * later_comp_ampl)
+
+
+        # extract earlier component
+        earlier_comp_sigma_er_long = self.sigma_medium_trials_er_tf - later_comp_sigma_er_long
+        earlier_comp_sigma_raw_er = earlier_comp_sigma_er_long[self.burst_mt_smpl[0]:self.burst_mt_smpl[1]]
+        earlier_comp_sigma_er = earlier_comp_sigma_raw_er*tf.cast(self.tukey_win_tf, 'complex128')
+
+        # add latency variability using interpolation method
+        earlier_comp_sigma_out = self.add_latency_variability(earlier_comp_sigma_raw_er, self.randn_eclv, eclvs)
+
+        # add latency variability using phase shift
+        #earlier_comp_phase = tf.transpose([tf.math.exp(1j * tf.cast(randn_eclv * eclvs, 'complex128'))])
+        #earlier_comp_sigma_out = tf.tensordot(earlier_comp_phase, [earlier_comp_sigma_er], axes=1)
+
+        # calculate scaler for earlier component base amplitude
+        # to compensate the effect of added latency variability on the amplitude
+        # earlier component amplitude base scaler
+        ecabs = (tf.reduce_mean(tf.math.abs(earlier_comp_sigma_er)) /
+                tf.reduce_mean(tf.math.abs(tf.reduce_mean(earlier_comp_sigma_out, axis=0))))
+
+        # calculate amplitude of earlier component
+        # prevent the amplitude to go below 0
+        earlier_comp_ampl = ecabs+self.randn_ecav*ecavs
+        earlier_comp_ampl = tf.math.softplus(earlier_comp_ampl*5)/5
+        earlier_comp_ampl = tf.cast(earlier_comp_ampl, 'complex128')
+
+        # add amplitude variability
+        earlier_comp_sigma_out = tf.transpose(tf.transpose(earlier_comp_sigma_out) * earlier_comp_ampl)
+
+
+        # combine two components of simulated burst
+        sigma_bursts_sim = tf.transpose(earlier_comp_sigma_out + later_comp_sigma_out)
+
+        # superpose the simulated burst with ongoing noise of recorded single trials
+        tf_zeros_1 = tf.zeros((self.burst_sim_mt_smpl[0], self.sigma_medium_trials_tf.shape[1]), dtype='complex128')
+        tf_zeros_2 = tf.zeros((self.sigma_medium_trials_tf.shape[0] - self.burst_sim_mt_smpl[1],
+                            self.sigma_medium_trials_tf.shape[1]), dtype='complex128')
+        sigma_sim_medium_trials = tf.concat((tf_zeros_1, sigma_bursts_sim, tf_zeros_2), axis=0)
+        sigma_sim_medium_trials = sigma_sim_medium_trials + self.sigma_medium_trials_tf
+
+        # calculate the statistical difference between physiological and simulated burst
+        result = self.calculate_model_loss(sigma_sim_medium_trials)
+
+        return result, division_curve, later_comp_sigma_er, earlier_comp_sigma_er, sigma_bursts_sim, sigma_sim_medium_trials
+
+    # wrapper function to pass the arguments better
+    def calculate_model_output(self, model_variables):
+
+        [div_steep, div_offset, ecavs, eclvs, lcavs, lclvs] = model_variables
+
+        div_offset_ms = div_offset*(self.burst_win_ms[1]-self.burst_win_ms[0])+self.burst_win_ms[0]
+
+        return self.calculate_model_output_raw(div_steep, div_offset_ms, ecavs, eclvs, lcavs, lclvs)
+
+    # use interpolation to make latency shift continuous
+    def add_latency_variability(self, component, randn_nclv, nclvs):
+
+        start_indices = self.cmp_offset+randn_nclv*nclvs
+        start_indices = tf.clip_by_value(start_indices, 0, self.cmp_offset*2-1)
+        
+        component_long = tf.concat((self.tf_offset_zeros, component, self.tf_offset_zeros), axis=0)
+        cols = start_indices[:, tf.newaxis] + self.cols_range
+        cols_floor = tf.floor(cols)
+        weights_ceil = cols - cols_floor
+        weights_floor = 1.0 - weights_ceil
+        weights_ceil = tf.cast(weights_ceil, 'complex128')
+        weights_floor = tf.cast(weights_floor, 'complex128')
+
+        new_comp = tf.tensordot(self.tf_trials_ones, [component_long], axes=1)
+
+        indices_floor = tf.stack([self.rows, tf.cast(cols_floor, 'int32')], axis=-1)
+        indices_ceil = tf.stack([self.rows, tf.cast(cols_floor, 'int32')+1], axis=-1)
+        values_floor = tf.gather_nd(new_comp, indices_floor)
+        values_ceil = tf.gather_nd(new_comp, indices_ceil)
+
+        new_comp = values_floor * weights_floor + values_ceil * weights_ceil
+        new_comp_out = new_comp*tf.cast(self.tukey_win_tf, 'complex128')
+
+        return new_comp_out
+
+
+    # calculate loss for the model
+    def calculate_model_loss(self, sigma_trials_sim, is_full_output=False):
+
+        burst_mt_smpl = self.burst_mt_smpl
+        burst_sim_mt_smpl = self.burst_sim_mt_smpl
+        tukey_win_err_tf = self.tukey_win_err_tf
+
+        sigma_trials_sim_real = tf.math.real(sigma_trials_sim)
+        sigma_trials_sim_abs = tf.math.abs(sigma_trials_sim)
+
+        # average curves difference
+        data_y = tf.math.reduce_mean(sigma_trials_sim_real, axis=-1)
+
+        avg_phys = data_y[burst_mt_smpl[0]:burst_mt_smpl[1]]
+        avg_phys_mc = avg_phys
+        avg_phys_tuk = avg_phys_mc*tukey_win_err_tf
+        avg_phys_std = tf.math.reduce_std(avg_phys_tuk)
+        avg_phys_norm = avg_phys_tuk/avg_phys_std
+
+        avg_sim = data_y[burst_sim_mt_smpl[0]:burst_sim_mt_smpl[1]]
+        avg_sim_mc = avg_sim
+        avg_sim_tuk = avg_sim_mc*tukey_win_err_tf
+        avg_sim_norm = avg_sim_tuk/avg_phys_std
+
+        #err_avg = tf.math.sqrt(tf.math.reduce_mean((avg_phys_norm - avg_sim_norm)**2))
+        err_avg = tf.math.reduce_mean((avg_phys_norm - avg_sim_norm)**2)
+
+        # variance curves difference
+        data_y = tf.math.reduce_std(sigma_trials_sim_real, axis=-1)
+
+        std_phys = data_y[burst_mt_smpl[0]:burst_mt_smpl[1]]
+        std_phys_min = tf.math.reduce_min(std_phys)
+        std_phys_mc = std_phys - std_phys_min
+        std_phys_tuk = std_phys_mc*tukey_win_err_tf
+        std_phys_std = tf.math.reduce_std(std_phys_tuk)
+        std_phys_norm = std_phys_tuk/std_phys_std
+
+        std_sim = data_y[burst_sim_mt_smpl[0]:burst_sim_mt_smpl[1]]
+        std_sim_mc = std_sim - std_phys_min
+        std_sim_tuk = std_sim_mc*tukey_win_err_tf
+        std_sim_norm = std_sim_tuk/std_phys_std
+
+        #err_std = tf.math.sqrt(tf.math.reduce_mean((std_phys_norm - std_sim_norm)**2))
+        err_std = tf.math.reduce_mean((std_phys_norm - std_sim_norm)**2)
+
+        # average of envelopes curves difference
+        data_y = tf.math.reduce_mean(sigma_trials_sim_abs, axis=-1)
+
+        avg_env_phys = data_y[burst_mt_smpl[0]:burst_mt_smpl[1]]
+        avg_env_phys_min = tf.math.reduce_min(avg_env_phys)
+        avg_env_phys_mc = avg_env_phys - avg_env_phys_min
+        avg_env_phys_tuk = avg_env_phys_mc*tukey_win_err_tf
+        avg_env_phys_std = tf.math.reduce_std(avg_env_phys_tuk)
+        avg_env_phys_norm = avg_env_phys_tuk/avg_env_phys_std
+
+        avg_env_sim = data_y[burst_sim_mt_smpl[0]:burst_sim_mt_smpl[1]]
+        avg_env_sim_mc = avg_env_sim - avg_env_phys_min
+        avg_env_sim_tuk = avg_env_sim_mc*tukey_win_err_tf
+        avg_env_sim_norm = avg_env_sim_tuk/avg_env_phys_std
+
+        #err_avg_env = tf.math.sqrt(tf.math.reduce_mean((avg_env_phys_norm - avg_env_sim_norm)**2))
+        err_avg_env = tf.math.reduce_mean((avg_env_phys_norm - avg_env_sim_norm)**2)
+
+        # variance of envelopes curves difference
+        data_y = tf.math.reduce_std(sigma_trials_sim_abs, axis=-1)
+
+        std_env_phys = data_y[burst_mt_smpl[0]:burst_mt_smpl[1]]
+        std_env_phys_min = tf.math.reduce_min(std_env_phys)
+        std_env_phys_mc = std_env_phys - std_env_phys_min
+        std_env_phys_tuk = std_env_phys_mc*tukey_win_err_tf
+        std_env_phys_std = tf.math.reduce_std(std_env_phys_tuk)
+        std_env_phys_norm = std_env_phys_tuk/std_env_phys_std
+
+        std_env_sim = data_y[burst_sim_mt_smpl[0]:burst_sim_mt_smpl[1]]
+        std_env_sim_mc = std_env_sim - std_env_phys_min
+        std_env_sim_tuk = std_env_sim_mc*tukey_win_err_tf
+        std_env_sim_norm = std_env_sim_tuk/std_env_phys_std
+
+        #err_std_env = tf.math.sqrt(tf.math.reduce_mean((std_env_phys_norm - std_env_sim_norm)**2))
+        err_std_env = tf.math.reduce_mean((std_env_phys_norm - std_env_sim_norm)**2)
+
+        error_combined = err_avg + err_std + err_avg_env + err_std_env
+
+        if(is_full_output):
+            return ((avg_phys_norm, avg_sim_norm, avg_phys_std, 0),
+                    (std_phys_norm, std_sim_norm, std_phys_std, std_phys_min),
+                    (avg_env_phys_norm, avg_env_sim_norm, avg_env_phys_std, avg_env_phys_min),
+                    (std_env_phys_norm, std_env_sim_norm, std_env_phys_std, std_env_phys_min),
+                    (err_avg, err_std, err_avg_env, err_std_env, error_combined))
+        else:
+            return error_combined
