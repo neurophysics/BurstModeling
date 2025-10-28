@@ -29,8 +29,8 @@ plt.rcParams['axes.xmargin'] = 0.01
 # %%
 # general settings
 
-# select subject [S1-S4]
-subject = 'S6'
+# select subject [S1-S5]
+subject = 'S5'
 
 additional_file_info = ''
 additional_title_info = ''
@@ -90,39 +90,23 @@ marker = meet.getMarker(meeg_stim_data[-1])
 # %%
 # set bandpass frequency range adjusted for every subject
 
-if(subject == 'S1'):
+if(subject == 'S1' or subject == 'S2'):
     sigma_lfreq = 450
     sigma_rfreq = 850
-elif(subject == 'S2'):
-    sigma_lfreq = 450
-    sigma_rfreq = 850
-elif(subject == 'S3'):
+elif(subject == 'S3' or  subject == 'S4' or subject == 'S5'):
     sigma_lfreq = 500
     sigma_rfreq = 900
-elif(subject == 'S4'):
-    sigma_lfreq = 500
-    sigma_rfreq = 900
-elif(subject == 'S5'):
-    sigma_lfreq = 450
-    sigma_rfreq = 850
-elif(subject == 'S6'):
-    sigma_lfreq = 450
-    sigma_rfreq = 850
 
 
 sigma_freq_range_str = '%sHz-%sHz' % (sigma_lfreq, sigma_rfreq)
 
 meg_data_hilb = sig.hilbert(meg_data)
 
-#IIR filter
-
-#sos = sig.butter(2, [sigma_lfreq, sigma_rfreq], 'bandpass', fs=srate, output='sos')
-#meg_sigma_data_hilb = sig.sosfiltfilt(sos, meg_data_hilb)
-
 # FIR filter
 
 sigma_fir_coeffs = sig.firwin(303, [sigma_lfreq, sigma_rfreq], pass_zero=False, fs=srate)
 meg_sigma_data_hilb = sig.filtfilt(sigma_fir_coeffs, 1.0, meg_data_hilb)
+
 
 # %%
 # set sigma burst time window adjusted for every subject
@@ -136,8 +120,6 @@ elif(subject == 'S3'):
 elif(subject == 'S4'):
     burst_win_ms = [13, 25]
 elif(subject == 'S5'):
-    burst_win_ms = [13, 28]
-elif(subject == 'S6'):
     burst_win_ms = [10, 30]
 
 # %%
@@ -280,7 +262,7 @@ df_out = pd.DataFrame({
 })
 
 # %%
-for fold in range(6):
+for fold in range(10):
 
     rndm_seed=fold//2
 
@@ -290,12 +272,20 @@ for fold in range(6):
     set_A_samples.sort()
     set_B_samples = np.setdiff1d(np.arange(n_trials), set_A_samples)
 
+
     if(fold % 2 == 0):
         sigma_medium_trials_train = sigma_medium_trials[:,set_A_samples]
         sigma_medium_trials_test = sigma_medium_trials[:,set_B_samples]
     else:
         sigma_medium_trials_train = sigma_medium_trials[:,set_B_samples]
         sigma_medium_trials_test = sigma_medium_trials[:,set_A_samples]
+
+    if(n_trials < 1200):
+        #train_set_aug_samples = np.random.choice(n_trials//2, n_trials//2, replace=True)
+        sigma_medium_trials_train = np.concatenate([sigma_medium_trials_train,
+                                                    sigma_medium_trials_train], axis=1)
+        sigma_medium_trials_test = np.concatenate([sigma_medium_trials_test,
+                                                    sigma_medium_trials_test], axis=1)
 
     os.makedirs(os.path.join(plots_output_folder, 'f'+str(fold)+'/'), exist_ok=True)
 
