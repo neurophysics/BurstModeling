@@ -5,7 +5,7 @@ from scipy import signal as sig
 
 class BurstModel:
 
-    def __init__(self, data_t_medium_ms, sigma_medium_trials, burst_win_ms, sigma_sim_offset_ms, srate, seed=2137):
+    def __init__(self, data_t_medium_ms, sigma_medium_trials, burst_win_ms, sigma_sim_offset_ms, srate, seed=60):
 
         self.data_t_medium_ms_tf = tf.constant(data_t_medium_ms)
         self.sigma_medium_trials_tf = tf.constant(sigma_medium_trials)
@@ -23,18 +23,19 @@ class BurstModel:
         self.tukey_win_tf = tf.constant(self.tukey_win)
         self.tukey_win_err_tf = tf.constant(self.tukey_win_err)
 
+        n_trials = sigma_medium_trials.shape[-1]
+
         # set gaussian distributions for the burst variability
         rng = np.random.default_rng(seed=seed)
-        self.randn_lcav = rng.standard_normal(sigma_medium_trials.shape[-1]) # later component amplitude variability
-        self.randn_lclv = rng.standard_normal(sigma_medium_trials.shape[-1]) # later component latency variability
+        self.randn_lcav = np.clip(rng.standard_normal(n_trials), -3, 3) # later component amplitude variability
+        self.randn_lclv = np.clip(rng.standard_normal(n_trials), -3, 3) # later component latency variability
 
-        self.randn_ecav = rng.standard_normal(sigma_medium_trials.shape[-1]) # earlier component amplitude variability
-        self.randn_eclv = rng.standard_normal(sigma_medium_trials.shape[-1]) # earlier component latency variability
+        self.randn_ecav = np.clip(rng.standard_normal(n_trials), -3, 3) # earlier component amplitude variability
+        self.randn_eclv = np.clip(rng.standard_normal(n_trials), -3, 3) # earlier component latency variability
 
         # latency variability constants
         self.cmp_offset = 100
         comp_len = np.diff(self.burst_mt_smpl)[0]
-        n_trials = sigma_medium_trials.shape[-1]
 
         self.cols_range = tf.range(comp_len, dtype='float64')
         self.tf_offset_zeros = tf.zeros(self.cmp_offset, dtype='complex128')
@@ -42,12 +43,6 @@ class BurstModel:
         self.rows = tf.range(n_trials)
         self.rows = tf.repeat(self.rows, comp_len)
         self.rows = tf.reshape(self.rows, (-1, comp_len))
-
-    def distr_transform_pow(self, distr, power):
-        return tf.math.sign(distr)*((tf.math.abs(distr)+1)**power-1)
-    
-    def distr_transform_tuk(self, distr, h):
-        return distr*tf.math.exp((h*distr**2)/2)
 
     # calculate output of the simulated burst model
     def calculate_model_output_raw(self, div_steep, div_offset_ms, ecavs, eclvs, lcavs, lclvs):
@@ -62,14 +57,8 @@ class BurstModel:
         later_comp_sigma_raw_er = later_comp_sigma_er_long[self.burst_mt_smpl[0]:self.burst_mt_smpl[1]]
         later_comp_sigma_er = later_comp_sigma_raw_er*tf.cast(self.tukey_win_tf, 'complex128')
 
-        #pow_randn_lclv = self.distr_transform_pow(self.randn_lclv, powl)
-
         # add latency variability using interpolation method
         later_comp_sigma_out = self.add_latency_variability(later_comp_sigma_raw_er, self.randn_lclv, lclvs)
-
-        # add latency variability using phase shift
-        #later_comp_phase = tf.transpose([tf.math.exp(1j * tf.cast(randn_lclv * lclvs, 'complex128'))])
-        #later_comp_sigma_out = tf.tensordot(later_comp_phase, [later_comp_sigma_er], axes=1)
 
         # calculate scaler for later component base amplitude
         # to compensate the effect of added latency variability on the amplitude
@@ -79,10 +68,7 @@ class BurstModel:
 
         # calculate amplitude of later component
         # prevent the amplitude to go below 0
-        #pow_randn_lcav = self.distr_transform_pow(self.randn_lcav, powa)
-        #lcav_comb = pow_randn_lcav*lcavs
         lcav_comb = self.randn_lcav*lcavs
-        #lcav_comb = lcav_comb - tf.math.reduce_mean(lcav_comb)
         later_comp_ampl = lcabs+lcav_comb
         later_comp_ampl = tf.math.softplus(later_comp_ampl*5)/5
         later_comp_ampl = tf.cast(later_comp_ampl, 'complex128')
@@ -98,10 +84,6 @@ class BurstModel:
 
         # add latency variability using interpolation method
         earlier_comp_sigma_out = self.add_latency_variability(earlier_comp_sigma_raw_er, self.randn_eclv, eclvs)
-
-        # add latency variability using phase shift
-        #earlier_comp_phase = tf.transpose([tf.math.exp(1j * tf.cast(randn_eclv * eclvs, 'complex128'))])
-        #earlier_comp_sigma_out = tf.tensordot(earlier_comp_phase, [earlier_comp_sigma_er], axes=1)
 
         # calculate scaler for earlier component base amplitude
         # to compensate the effect of added latency variability on the amplitude
