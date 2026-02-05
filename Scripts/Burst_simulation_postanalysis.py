@@ -191,128 +191,110 @@ sigma_stat_medium_trials = model_out_static[-1].numpy()
 evoked_response = model_out_static[2].numpy()
 
 # %%
-fig, axs = plt.subplots(2, 3, figsize=(16, 9))
+fig, axs = plt.subplots(2, 2, figsize=(16, 9))
 
 data_y = sigma_medium_trials.real
 data_t = data_t_medium_ms
 
+t_ticks = np.arange(0, 75, 5)
+t_ticks_labels = t_ticks.astype('str')
+t_ticks_labels[8:14] = ['40\n(10)', '45\n(15)', '50\n(20)', '55\n(25)', '60\n(30)', '65\n(35)']
+
+
 i,j = 0,0
 
-axs[i][j].set_title('I. Recorded burst', fontsize = 18)
+axs[i][j].set_title('A. Modelling static burst response', fontsize = 18)
 axs[i][j].plot(data_t, data_y, color='royalblue', alpha=0.1, linewidth=0.5)
 axs[i][j].plot([], [], color='royalblue', label='single trials')
-axs[i][j].plot(data_t, data_y.mean(-1), color='navy', linewidth=1, label='averaged response')
-axs[i][j].set_xlim(10, 35)
+axs[i][j].plot(data_t, data_y.mean(-1), color='navy', linewidth=1)
+axs[i][j].plot(data_t_burst_sim_ms, evoked_response.real+100, color='navy', linewidth=1, label='averaged response')
+axs[i][j].arrow(53.8, 80, 0, -60, length_includes_head=True, width=0.1, head_width=1, head_length=10, color='black')
+axs[i][j].set_xlim(0, 70)
 axs[i][j].get_xaxis().set_major_locator(plticker.MultipleLocator(5))
 axs[i][j].get_yaxis().set_major_locator(plticker.MultipleLocator(25))
 axs[i][j].set_ylim(-75, 175)
 axs[i][j].grid(axis='y')
 axs[i][j].set_ylabel(meg_unit, size=14)
+axs[i][j].set_xticks(t_ticks, labels=t_ticks_labels)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
+axs[i][j].text(0.26, 0.64, 'I', fontsize=20, fontname='serif',
+            ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.69, 0.94, 'IIa', fontsize=20, fontname='serif',
+            ha='center', va='center', transform=axs[i][j].transAxes)
 axs[i][j].legend(loc='upper left', borderaxespad=0.2, fontsize=14)
+
 
 i,j = 0,1
 
-axs[i][j].set_title('IIa. Static burst model', fontsize = 18)
-axs[i][j].plot(data_t, data_y, color='royalblue', alpha=0.1, linewidth=0.5)
-axs[i][j].plot(data_t, data_y.mean(-1), color='navy', linewidth=1)
-axs[i][j].plot(data_t_burst_sim_ms, evoked_response.real+100, color='navy', linewidth=1)
-axs[i][j].arrow(53.8, 80, 0, -60, length_includes_head=True, width=0.1, head_width=1, head_length=10, color='black')
-axs[i][j].set_xlim(40, 65)
-axs[i][j].get_xaxis().set_major_locator(plticker.MultipleLocator(5))
-axs[i][j].get_yaxis().set_major_locator(plticker.MultipleLocator(25))
-axs[i][j].set_ylim(-75, 175)
-axs[i][j].grid(axis='y')
-axs[i][j].tick_params(axis='y', labelsize=12)
-axs[i][j].tick_params(axis='x', labelsize=12)
-
-i,j = 0,2
-
-axs[i][j].set_title('IIb. Variable burst model', fontsize = 18)
+axs[i][j].set_title('B. Modelling variable burst response', fontsize = 18)
 axs[i][j].plot(data_t, data_y, color='royalblue', alpha=0.1, linewidth=0.5)
 axs[i][j].plot(data_t, data_y.mean(-1), color='navy', linewidth=1)
 axs[i][j].plot(data_t_burst_sim_ms, sigma_bursts_sim.real+100, color='royalblue', alpha=0.1, linewidth=0.5)
 axs[i][j].plot(data_t_burst_sim_ms, evoked_response.real+100, color='navy', linewidth=1)
 axs[i][j].arrow(53.8, 80, 0, -60, length_includes_head=True, width=0.1, head_width=1, head_length=10, color='black')
-axs[i][j].set_xlim(40, 65)
+axs[i][j].set_xlim(0, 70)
 axs[i][j].get_xaxis().set_major_locator(plticker.MultipleLocator(5))
 axs[i][j].get_yaxis().set_major_locator(plticker.MultipleLocator(25))
 axs[i][j].set_ylim(-75, 175)
 axs[i][j].grid(axis='y')
+axs[i][j].set_xticks(t_ticks, labels=t_ticks_labels)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
+axs[i][j].text(0.26, 0.64, 'I', fontsize=20, fontname='serif',
+            ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.69, 0.94, 'IIb', fontsize=20, fontname='serif',
+            ha='center', va='center', transform=axs[i][j].transAxes)
 
-data_y = sigma_medium_trials.real
+
+data_y = sigma_stat_medium_trials.real
 data_t = data_t_medium_ms
 
 i,j = 1,0
 
 axs[i][j].plot(data_t, data_y, color='royalblue', alpha=0.1, linewidth=0.5)
 axs[i][j].plot(data_t, data_y.mean(-1), color='navy', linewidth=1)
-axs[i][j].set_xlim(10, 35)
+axs[i][j].set_xlim(0, 70)
 axs[i][j].get_xaxis().set_major_locator(plticker.MultipleLocator(5))
 axs[i][j].get_yaxis().set_major_locator(plticker.MultipleLocator(25))
 axs[i][j].set_ylim(-125, 125)
 axs[i][j].grid(axis='y')
 axs[i][j].set_ylabel(meg_unit, size=14)
-axs[i][j].set_xlabel('trial/burst time [ms]', fontsize=14)
+axs[i][j].set_xticks(t_ticks, labels=t_ticks_labels)
+axs[i][j].set_xlabel('          recorded trial time [ms]          (simulated burst time [ms])', fontsize=14)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
+axs[i][j].text(0.26, 0.84, 'I', fontsize=20, fontname='serif',
+            ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.69, 0.84, 'IIa', fontsize=20, fontname='serif',
+            ha='center', va='center', transform=axs[i][j].transAxes)
 
 
-data_y = sigma_stat_medium_trials.real
+data_y = sigma_sim_medium_trials.real
 data_t = data_t_medium_ms
 
 i,j = 1,1
 
 axs[i][j].plot(data_t, data_y, color='royalblue', alpha=0.1, linewidth=0.5)
 axs[i][j].plot(data_t, data_y.mean(-1), color='navy', linewidth=1)
-axs[i][j].set_xlim(40, 65)
+axs[i][j].set_xlim(0, 70)
 axs[i][j].get_xaxis().set_major_locator(plticker.MultipleLocator(5))
 axs[i][j].get_yaxis().set_major_locator(plticker.MultipleLocator(25))
 axs[i][j].set_ylim(-125, 125)
 axs[i][j].grid(axis='y')
-axs[i][j].set_xticks([40, 45, 50, 55, 60, 65],
-                     labels=['40\n(10)', '45\n(15)', '50\n(20)', '55\n(25)', '60\n(30)', '65\n(35)'])
-axs[i][j].set_xlabel('trial time [ms]\n(burst time [ms])', fontsize=14)
+axs[i][j].set_xticks(t_ticks, labels=t_ticks_labels)
+axs[i][j].set_xlabel('          recorded trial time [ms]          (simulated burst time [ms])', fontsize=14)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
-
-
-data_y = sigma_sim_medium_trials.real
-data_t = data_t_medium_ms
-
-i,j = 1,2
-
-axs[i][j].plot(data_t, data_y, color='royalblue', alpha=0.1, linewidth=0.5)
-axs[i][j].plot(data_t, data_y.mean(-1), color='navy', linewidth=1)
-axs[i][j].set_xlim(40, 65)
-axs[i][j].get_xaxis().set_major_locator(plticker.MultipleLocator(5))
-axs[i][j].get_yaxis().set_major_locator(plticker.MultipleLocator(25))
-axs[i][j].set_ylim(-125, 125)
-axs[i][j].grid(axis='y')
-axs[i][j].set_xticks([40, 45, 50, 55, 60, 65],
-                     labels=['40\n(10)', '45\n(15)', '50\n(20)', '55\n(25)', '60\n(30)', '65\n(35)'])
-axs[i][j].set_xlabel('trial time [ms]\n(burst time [ms])', fontsize=14)
-axs[i][j].tick_params(axis='y', labelsize=12)
-axs[i][j].tick_params(axis='x', labelsize=12)
+axs[i][j].text(0.26, 0.84, 'I', fontsize=20, fontname='serif',
+            ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.69, 0.84, 'IIb', fontsize=20, fontname='serif',
+            ha='center', va='center', transform=axs[i][j].transAxes)
 
 fig.lines.append(
     plt.Line2D(
-        (0.348, 0.348),      # x in figure fraction (0 = left, 1 = right)
-        (0, 1),          # y from bottom to top of figure
-        transform=fig.transFigure,
-        color='black',
-        linestyle='--',
-        linewidth=1
-    )
-)
-
-fig.lines.append(
-    plt.Line2D(
-        (0.674, 0.674),      # x in figure fraction (0 = left, 1 = right)
-        (0, 1),          # y from bottom to top of figure
+        (0.508, 0.508),     # x in figure fraction (0 = left, 1 = right)
+        (0, 1),             # y from bottom to top of figure
         transform=fig.transFigure,
         color='black',
         linestyle='--',
