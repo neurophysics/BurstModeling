@@ -114,7 +114,7 @@ class BurstModel:
         # calculate the statistical difference between physiological and simulated burst
         result = self.calculate_model_loss(sigma_sim_medium_trials)
 
-        return result, division_curve, later_comp_sigma_er, earlier_comp_sigma_er, sigma_bursts_sim, sigma_sim_medium_trials
+        return result, division_curve, later_comp_sigma_er, lcabs, earlier_comp_sigma_er, ecabs, sigma_bursts_sim, sigma_sim_medium_trials
 
     # wrapper function to pass the arguments better
     def calculate_model_output(self, model_variables):

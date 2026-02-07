@@ -9,16 +9,13 @@ statistical properties
 
 # %%
 import os
-import sys
 import meet
 import scipy
 import numpy as np
-from tqdm import trange
 import matplotlib.pyplot as plt
 from scipy import signal as sig
 from BurstModel import BurstModel
 import matplotlib.ticker as plticker
-import helper_scripts.helper_functions as helper_functions
 
 
 # set global parameters for plots
@@ -183,12 +180,16 @@ div_offset_ms = div_offset*(burst_win_ms[1]-burst_win_ms[0])+burst_win_ms[0]
 # %%
 bm = BurstModel(data_t_medium_ms, sigma_medium_trials, burst_win_ms, sigma_sim_offset_ms, srate, seed=60)
 
-[loss, division_curve, later_comp_sigma_er, earlier_comp_sigma_er, sigma_bursts_sim,
+[loss, division_curve, later_comp_sigma_er, lcabs, earlier_comp_sigma_er, ecabs, sigma_bursts_sim,
 sigma_sim_medium_trials] = [i.numpy() for i in bm.calculate_model_output(model_variables)]
 
 model_out_static = bm.calculate_model_output([10,0,0,0,0,0])
 sigma_stat_medium_trials = model_out_static[-1].numpy()
 evoked_response = model_out_static[2].numpy()
+
+# %%
+print('ecabs: ', ecabs)
+print('lcabs: ', lcabs)
 
 # %%
 fig, axs = plt.subplots(2, 2, figsize=(16, 9))

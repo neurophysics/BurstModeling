@@ -30,7 +30,7 @@ plt.rcParams['axes.xmargin'] = 0.01
 # general settings
 
 # select subject [S1-S5]
-subject = 'S5'
+subject = 'S1'
 
 additional_file_info = ''
 additional_title_info = ''
@@ -107,7 +107,6 @@ meg_data_hilb = sig.hilbert(meg_data)
 sigma_fir_coeffs = sig.firwin(303, [sigma_lfreq, sigma_rfreq], pass_zero=False, fs=srate)
 meg_sigma_data_hilb = sig.filtfilt(sigma_fir_coeffs, 1.0, meg_data_hilb)
 
-
 # %%
 # set sigma burst time window adjusted for every subject
 
@@ -152,7 +151,6 @@ data_t_burst_sim_ms = data_t_burst_ms + sigma_sim_offset_ms
 
 evoked_response_raw = (sigma_burst_trials.mean(-1))
 tukey_win = sig.windows.tukey(len(evoked_response_raw), 0.2)
-tukey_win_err = sig.windows.tukey(len(evoked_response_raw), 0.4)
 evoked_response_tuk = evoked_response_raw * tukey_win
 evoked_response = evoked_response_tuk
 
@@ -287,6 +285,7 @@ for fold in range(10):
         sigma_medium_trials_test = np.concatenate([sigma_medium_trials_test,
                                                     sigma_medium_trials_test], axis=1)
 
+
     os.makedirs(os.path.join(plots_output_folder, 'f'+str(fold)+'/'), exist_ok=True)
 
     for m_cmplx in range(4):
@@ -387,20 +386,35 @@ for fold in range(10):
             fig.tight_layout()
             plt_show_save_fig(fig_name_base+'_runs_table')
 
+            # plot training curves
+            fig, ax = plt.subplots()
+            plt.title('Training loss curves', fontsize=12)
+            y_max=1
+            ax.plot(runs_loss_curves.T, alpha=0.8)
+            ax.set_xlim(0, max_epochs)
+            ax.set_ylim(0.0, y_max)
+            ax.set_xlabel('optimization epoch')
+            ax.set_ylabel('loss')
+            ax.xaxis.set_major_locator(plticker.MultipleLocator(10))
+            ax.yaxis.set_major_locator(plticker.MultipleLocator(0.2))
+            ax.grid(visible=True)
+            ax.legend([f"run {i+1}" for i in range(len(runs_loss_curves))])
+            plt_show_save_fig(fig_name_base+'_runs_curves_1')
 
             # plot training curves
             fig, ax = plt.subplots()
-            plt.title(fig_title_base+'\nTraining loss curves', fontsize=12)
+            plt.title('Training loss curves', fontsize=12)
             y_max=2
             ax.plot(runs_loss_curves.T, alpha=0.8)
             ax.set_xlim(0, max_epochs)
             ax.set_ylim(0.0, y_max)
-            ax.set_xlabel('epoch')
+            ax.set_xlabel('optimization epoch')
             ax.set_ylabel('loss')
             ax.xaxis.set_major_locator(plticker.MultipleLocator(10))
             ax.yaxis.set_major_locator(plticker.MultipleLocator(0.25))
             ax.grid(visible=True)
-            plt_show_save_fig(fig_name_base+'_runs_curves')
+            ax.legend([f"run {i+1}" for i in range(len(runs_loss_curves))])
+            plt_show_save_fig(fig_name_base+'_runs_curves_2')
 
             # take parameters from the best run
             model_variables = runs_params_fin[runs_loss_fin.argmin()]
@@ -408,7 +422,7 @@ for fold in range(10):
         [div_steep, div_offset, ecavs, eclvs, lcavs, lclvs] = model_variables
         div_offset_ms = div_offset*(burst_win_ms[1]-burst_win_ms[0])+burst_win_ms[0]
 
-        [result, division_curve, later_comp_sigma_er, earlier_comp_sigma_er, sigma_bursts_sim,
+        [result, division_curve, later_comp_sigma_er, lcabs, earlier_comp_sigma_er, ecabs, sigma_bursts_sim,
         sigma_sim_medium_trials] = [i.numpy() for i in bm_train.calculate_model_output(model_variables)]
 
         train_loss = result
@@ -442,7 +456,7 @@ for fold in range(10):
         plot_loss_results(bm_train, sigma_sim_medium_trials,
                         filename=fig_name_base+'_train_set_loss')
 
-        [result, division_curve, later_comp_sigma_er, earlier_comp_sigma_er, sigma_bursts_sim,
+        [result, division_curve, later_comp_sigma_er, lcabs, earlier_comp_sigma_er, ecabs, sigma_bursts_sim,
         sigma_sim_medium_trials] = [i.numpy() for i in bm_test.calculate_model_output(model_variables)]
 
 
