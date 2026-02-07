@@ -22,10 +22,6 @@ df_S4 = pd.read_csv(os.path.join(data_folder, 'S4', 'S4_results.csv'))
 df_S5 = pd.read_csv(os.path.join(data_folder, 'S5', 'S5_results.csv'))
 
 df_all = pd.concat([df_S1, df_S2, df_S3, df_S4, df_S5], ignore_index=True)
-df_all = df_all.rename({'div_offset' : 'div_pos'}, axis='columns')
-
-df_all = df_all[['subject', 'fold', 'opt_params', 'div_steep', 'div_pos',
-                 'ecavs', 'lcavs', 'eclvs', 'lclvs', 'train_loss', 'test_loss']]
 
 subj_fold_col = df_all['subject']+'_f'+df_all['fold'].astype('string')
 df_all.insert(2, 'subj_fold', subj_fold_col)

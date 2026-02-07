@@ -250,7 +250,7 @@ df_out = pd.DataFrame({
     'fold':[],
     'opt_params':[],
     'div_steep':[],
-    'div_offset':[],
+    'div_pos':[],
     'ecavs':[],
     'eclvs':[],
     'lcavs':[],
@@ -375,7 +375,7 @@ for fold in range(10):
             table_data = table_data[table_data[:, -1].argsort()]
             table_data = np.array([["{:.3f}".format(value) for value in row] for row in table_data])
             for i in range(len(table_data[:,0])): table_data[:,0][i] = table_data[:,0][i].split('.')[0]
-            table_labels = ['run', 'div_steep', 'div_offset', 'ecavs', 'eclvs', 'lcavs', 'lclvs', 'loss']
+            table_labels = ['run', 'div_steep', 'div_pos', 'ecavs', 'eclvs', 'lcavs', 'lclvs', 'loss']
 
             fig, ax = plt.subplots()
             plt.suptitle(fig_title_base+'\nFinding best parameters for the model', fontsize=14)
@@ -419,8 +419,8 @@ for fold in range(10):
             # take parameters from the best run
             model_variables = runs_params_fin[runs_loss_fin.argmin()]
 
-        [div_steep, div_offset, ecavs, eclvs, lcavs, lclvs] = model_variables
-        div_offset_ms = div_offset*(burst_win_ms[1]-burst_win_ms[0])+burst_win_ms[0]
+        [div_steep, div_pos, ecavs, eclvs, lcavs, lclvs] = model_variables
+        div_pos_ms = div_pos*(burst_win_ms[1]-burst_win_ms[0])+burst_win_ms[0]
 
         [result, division_curve, later_comp_sigma_er, lcabs, earlier_comp_sigma_er, ecabs, sigma_bursts_sim,
         sigma_sim_medium_trials] = [i.numpy() for i in bm_train.calculate_model_output(model_variables)]
@@ -432,7 +432,7 @@ for fold in range(10):
         # plot extracted components
         fig, ax = plt.subplots()
         plt.title(fig_title_base+'\nExtraction of earlier and later sigma burst components, ' \
-        'div_steep=%.3f, div_offset_ms=%.2f' % (div_steep, div_offset_ms), fontsize=12)
+        'div_steep=%.3f, div_pos_ms=%.2f' % (div_steep, div_pos_ms), fontsize=12)
 
         ax.axhline(0, color='silver')
         ax.axvline(20, color='silver')
@@ -466,7 +466,7 @@ for fold in range(10):
         test_loss = result
         print(test_loss)
 
-        new_out_record = [subject, fold, m_cmplx*2, div_steep, div_offset,
+        new_out_record = [subject, fold, m_cmplx*2, div_steep, div_pos,
                         ecavs, eclvs, lcavs, lclvs, train_loss, test_loss]
         df_out.loc[len(df_out)] = new_out_record
 

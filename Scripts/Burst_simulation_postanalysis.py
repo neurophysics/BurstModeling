@@ -174,8 +174,8 @@ model_variables_subj['S4'] = [0.546, 0.368, 0.000, 0.000, 0.492, 2.236]
 model_variables_subj['S5'] = [0.510, 0.402, 0.000, 0.000, 0.667, 2.354]
 
 model_variables = model_variables_subj[subject]
-[div_steep, div_offset, ecavs, eclvs, lcavs, lclvs] = model_variables
-div_offset_ms = div_offset*(burst_win_ms[1]-burst_win_ms[0])+burst_win_ms[0]
+[div_steep, div_pos, ecavs, eclvs, lcavs, lclvs] = model_variables
+div_pos_ms = div_pos*(burst_win_ms[1]-burst_win_ms[0])+burst_win_ms[0]
 
 # %%
 bm = BurstModel(data_t_medium_ms, sigma_medium_trials, burst_win_ms, sigma_sim_offset_ms, srate, seed=60)
@@ -662,7 +662,7 @@ plt_show_save_fig()
 fig, axs = plt.subplots()
 
 plt_header('Extraction of early and late sigma burst components, ' \
-'$\it{div\_steep}$=%.3f, $\it{div\_pos}$=%.3f (%.2f ms)' % (div_steep, div_offset, div_offset_ms))
+'$\it{div\_steep}$=%.3f, $\it{div\_pos}$=%.3f (%.2f ms)' % (div_steep, div_pos, div_pos_ms))
 
 axs.axhline(0, color='silver')
 axs.axvline(20, color='silver')
