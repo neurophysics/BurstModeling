@@ -215,10 +215,15 @@ plt.legend()
 plt_show_save_fig()
 
 # %%
-# apply fc=1Hz hp filter to remove DC component
+# apply fc=0.1Hz hp filter to remove DC component
 
-sos = sig.butter(2, 1, 'highpass', fs=srate, output='sos')
-MEG_data = sig.sosfiltfilt(sos, MEG_stimuli_removed_data)
+MEG_data = MEG_stimuli_removed_data - MEG_stimuli_removed_data.mean()
+
+sos = sig.butter(4, 0.1, 'highpass', fs=srate, output='sos')
+MEG_data = sig.sosfiltfilt(sos, MEG_data)
+
+sos = sig.butter(4, 5000, 'lowpass', fs=srate, output='sos')
+MEG_data = sig.sosfiltfilt(sos, MEG_data)
 
 # %%
 # plot signal without DC component
@@ -228,7 +233,7 @@ data_x = np.linspace(0, (len(data)-1)/srate, len(data))
 data_y = data
 plt.plot(data_x, data_y)
 
-plt_header('MEG data fc=1Hz hp filtered')
+plt_header('MEG data 0.1Hz hp, 5kHz lp filtered')
 plt.xlabel('t [s]')
 plt.ylabel(unit)
 plt_show_save_fig()
@@ -242,83 +247,20 @@ def asd(data, nperseg):
     return xf, np.sqrt(yf)
 
 # %%
-# plot asd of signal after removing stimulus
-
-data = MEG_data
-nperseg = 2**13
-xf, yf = asd(data, nperseg)
-
-plt_header('Cleaning MEG signal, stimulus artifact removed, hp filter 1Hz')
-plt.plot(xf, yf)
-
-plt.xscale('log')
-plt.yscale('log')
-plt.xlim((1,srate//2))
-plt.ylim((0.1, 1000))
-plt.xlabel('f [Hz]')
-plt.ylabel('Amplitude Spectral Density %s' % asd_unit)
-plt.grid(axis='x', which='major', linewidth=1.5)
-plt.grid(axis='x', which='minor', linewidth=0.5)
-plt.grid(axis='y', which='major', linewidth=1.5)
-plt.grid(axis='y', which='minor', linewidth=0.5)
-plt_show_save_fig()
-
-# %%
-# remove powerline artifacts / spectrum peaks
-
-MEG_with_spectrum_peaks = MEG_data
-
-## apply low-pass filter to remove potential very high-frequency (>6kHz)
-sos = sig.butter(4, 6000, 'lowpass', fs=srate, output='sos')
-MEG_data = sig.sosfiltfilt(sos, MEG_data)
-asd_peaks_combined = []
-
-# detect peaks in the spectrum
-nperseg = 2**12
-data = MEG_data
-xf, yf = asd(data, nperseg)
-
-asd_peaks = sig.find_peaks(yf, prominence=0.5)[0]
-asd_peaks = asd_peaks[xf[asd_peaks] > 80]
-peaks_to_remove = xf[asd_peaks]
-
-
-print('Peaks to remove:', peaks_to_remove)
-
-if(len(peaks_to_remove) > 0):
-
-    import mne
-    info = mne.create_info(ch_names=['ch1'], sfreq=srate, ch_types=['eeg'])
-    raw = mne.io.RawArray([MEG_data], info)
-
-    # filtering
-    raw = raw.notch_filter(freqs=peaks_to_remove, method="spectrum_fit")
-    MEG_data = raw['ch1'][0][0]
-
-# reinterpolate the stimulus to remove filtering artifacts
-MEG_data = meet.interpolateEEG(MEG_data, marker, interpolate_win)
-
-## apply low-pass filter to remove potential artifact near Nyquist freqency
-sos = sig.butter(4, 5000, 'lowpass', fs=srate, output='sos')
-MEG_data = sig.sosfiltfilt(sos, MEG_data)
-
-print('Peaks removed:', peaks_to_remove)
-
-# %%
 # plot asd of signal without powerline artifacts / spectrum peaks
 
-data = MEG_with_spectrum_peaks
-nperseg = 2**13
-xf, yf = asd(data, nperseg)
+plt_header('Cleaning MEG signal')
 
-plt_header('Cleaning MEG signal, removing powerline artifacts / spectrum peaks')
-plt.scatter(xf[asd_peaks_combined], yf[asd_peaks_combined], marker='x', color='red', label='peaks to remove')
-plt.plot(xf, yf, label='with artifacts')
+nperseg = 2**13
+
+data = MEG_stimuli_removed_data
+xf, yf = asd(data, nperseg)
+plt.plot(xf, yf, label='stimulation artifacts removed')
 
 data = MEG_data
 xf, yf = asd(data, nperseg)
+plt.plot(xf, yf, label='and 0.1Hz hp, 5kHz lp filtered')
 
-plt.plot(xf, yf, label='artifacts removed')
 plt.xscale('log')
 plt.yscale('log')
 plt.xlim((1,srate//2))
