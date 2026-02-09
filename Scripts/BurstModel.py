@@ -45,7 +45,7 @@ class BurstModel:
 
         n_trials = sigma_medium_trials.shape[-1] # number of trials
 
-        # set gaussian distributions for the burst variability
+        # set Gaussian distributions for the burst variability
         rng = np.random.default_rng(seed=seed)
         self.randn_lcav = np.clip(rng.standard_normal(n_trials), -3, 3) # late component amplitude variability
         self.randn_lclv = np.clip(rng.standard_normal(n_trials), -3, 3) # late component latency variability
