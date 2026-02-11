@@ -2,7 +2,7 @@
 """
 Data_preprocessing.py
 Lukasz Radzinski
-Charite Neurophysics Group, Berlin
+Charité Neurophysics Group, Berlin
 Script for preprocessing single channel
 MEG recordings
 """
@@ -45,12 +45,7 @@ raw_data = helper_functions.readMEG(os.path.join(data_input_folder, subject+'_ME
 # as it can contain muscular artifacts
 offset_start = 10*srate
 
-# set the polarity that N20 response is negative
-if(subject=='S5'):
-    MEG_raw_data = raw_data[0][offset_start:]
-else:
-    MEG_raw_data = -raw_data[0][offset_start:]
-
+MEG_raw_data = raw_data[0][offset_start:]
 stimulus_data = raw_data[-1][offset_start:]
 
 # %%
@@ -142,7 +137,7 @@ plt_show_save_fig()
 
 # %%
 # get the stimuli positions
-all_stimuli = meet.getMarker(stimulus_data)
+all_stimuli = ((stimulus_data[1:]>250000) & (stimulus_data[:-1]<250000)).nonzero()[0]
 
 # get the marker, omit the first and last (avoid edge effects)
 marker = all_stimuli[1:-1]
