@@ -2,9 +2,9 @@
 """
 Burst_simulation_analysis.py
 Lukasz Radzinski
-Charite Neurophysics Group, Berlin
-Script for simulating sigma burst
-statistical properties
+Charité Neurophysics Group, Berlin
+Script for analysis of sigma burst
+simulation results
 """
 
 # %%
@@ -216,7 +216,6 @@ axs[i][j].get_yaxis().set_major_locator(plticker.MultipleLocator(25))
 axs[i][j].set_ylim(-75, 175)
 axs[i][j].grid(axis='y')
 axs[i][j].set_ylabel(meg_unit, size=14)
-axs[i][j].set_xticks(t_ticks, labels=t_ticks_labels)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
 axs[i][j].text(0.26, 0.64, 'I', fontsize=20, fontname='serif',
@@ -239,7 +238,6 @@ axs[i][j].get_xaxis().set_major_locator(plticker.MultipleLocator(5))
 axs[i][j].get_yaxis().set_major_locator(plticker.MultipleLocator(25))
 axs[i][j].set_ylim(-75, 175)
 axs[i][j].grid(axis='y')
-axs[i][j].set_xticks(t_ticks, labels=t_ticks_labels)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
 axs[i][j].text(0.26, 0.64, 'I', fontsize=20, fontname='serif',
@@ -262,7 +260,9 @@ axs[i][j].set_ylim(-125, 125)
 axs[i][j].grid(axis='y')
 axs[i][j].set_ylabel(meg_unit, size=14)
 axs[i][j].set_xticks(t_ticks, labels=t_ticks_labels)
-axs[i][j].set_xlabel('          recorded trial time [ms]          (simulated burst time [ms])', fontsize=14)
+axs[i][j].set_xlabel('                         trial time [ms]\n'
+'                                                             (relative true burst time [ms])',
+                                                              loc='left', fontsize=14)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
 axs[i][j].text(0.26, 0.84, 'I', fontsize=20, fontname='serif',
@@ -284,7 +284,9 @@ axs[i][j].get_yaxis().set_major_locator(plticker.MultipleLocator(25))
 axs[i][j].set_ylim(-125, 125)
 axs[i][j].grid(axis='y')
 axs[i][j].set_xticks(t_ticks, labels=t_ticks_labels)
-axs[i][j].set_xlabel('          recorded trial time [ms]          (simulated burst time [ms])', fontsize=14)
+axs[i][j].set_xlabel('                         trial time [ms]\n'
+'                                                             (relative true burst time [ms])',
+                                                              loc='left', fontsize=14)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
 axs[i][j].text(0.26, 0.84, 'I', fontsize=20, fontname='serif',
@@ -661,8 +663,9 @@ plt_show_save_fig()
 # plot extracted components
 fig, axs = plt.subplots()
 
-plt_header('Extraction of early and late sigma burst components, ' \
-'$\it{div\_steep}$=%.3f, $\it{div\_pos}$=%.3f (%.2f ms)' % (div_steep, div_pos, div_pos_ms))
+plt_header('Extraction of sigma burst components, ' \
+'$\it{div\_steep}$=%.3f, $\it{div\_pos}$=%.3f, %.2f ms (%.2f ms)' %
+(div_steep, div_pos, div_pos_ms+sigma_sim_offset_ms, div_pos_ms))
 
 axs.axhline(0, color='silver')
 axs.axvline(20, color='silver')
@@ -672,13 +675,16 @@ axs.plot(data_t_burst_ms, later_comp_sigma_er.real, label='late component', line
 division_curve_rescaled = 30*(2*division_curve-1)
 axs.plot(data_t_medium_ms, division_curve_rescaled, alpha=0.8, label='division curve')
 
-axs.set_xlabel('burst time [ms]')
-axs.set_ylabel(meg_unit)
+
 vmax=30
 axs.set_ylim((-vmax,vmax))
 axs.set_xlim((burst_win_ms[0], burst_win_ms[-1]))
 axs.xaxis.set_major_locator(plticker.MultipleLocator(1))
-axs.tick_params()
+ticks = axs.get_xticks().astype('int')
+ticks_labels = [str(i+sigma_sim_offset_ms)+'\n('+str(i)+')' for i in ticks]
+axs.set_xticks(ticks, ticks_labels)
+axs.set_xlabel('\nsimulated burst time [ms]\n(relative true burst time [ms])')
+axs.set_ylabel(meg_unit)
 axs.grid(visible=True)
 axs.legend()
 
