@@ -12,6 +12,7 @@ import os
 import meet
 import scipy
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import signal as sig
 import helper_scripts.helper_functions as helper_functions
@@ -39,6 +40,14 @@ asd_unit = '[fT/√HZ]'
 # %%
 # load data
 raw_data = helper_functions.readMEG(os.path.join(data_input_folder, subject+'_MEG_stim.dat'), s_rate=srate, num_chans=2)
+
+burst_prop_df = pd.read_csv('burst_subjects.csv')
+
+lfreq_sigma = burst_prop_df[burst_prop_df['Subject']==subject]['Freq_start'].values[0]
+rfreq_sigma = burst_prop_df[burst_prop_df['Subject']==subject]['Freq_end'].values[0]
+
+burst_time_start = burst_prop_df[burst_prop_df['Subject']==subject]['Time_start'].values[0]
+burst_time_end = burst_prop_df[burst_prop_df['Subject']==subject]['Time_end'].values[0]
 
 # %%
 # remove first 10 seconds of the recording
@@ -212,10 +221,10 @@ plt_show_save_fig()
 # %%
 # apply fc=0.1Hz hp filter to remove DC component
 
-MEG_data = MEG_stimuli_removed_data - MEG_stimuli_removed_data.mean()
+MEG_stimuli_removed_data = MEG_stimuli_removed_data - MEG_stimuli_removed_data.mean()
 
 sos = sig.butter(4, 0.1, 'highpass', fs=srate, output='sos')
-MEG_data = sig.sosfiltfilt(sos, MEG_data)
+MEG_data = sig.sosfiltfilt(sos, MEG_stimuli_removed_data)
 
 sos = sig.butter(4, 5000, 'lowpass', fs=srate, output='sos')
 MEG_data = sig.sosfiltfilt(sos, MEG_data)
@@ -271,17 +280,11 @@ plt_show_save_fig()
 
 # %%
 # apply band-pass filter to extract
-# high-frequency band (sigma band) and 
-# high-frequency somatosensory evoked response (sigma burst)
+# high-frequency band (sigma band)
+# extend the band ±50Hz to obtain
+# 3dB cutoff in the bandstop frequencies
 
-if(subject == 'S1' or subject == 'S2'):
-    lfreq_sigma = 450
-    rfreq_sigma = 850
-elif(subject == 'S3' or subject == 'S4' or subject == 'S5'):
-    lfreq_sigma = 500
-    rfreq_sigma = 900
-
-sigma_fir_coeffs = sig.firwin(303, [lfreq_sigma, rfreq_sigma], pass_zero=False, fs=srate)
+sigma_fir_coeffs = sig.firwin(303, [lfreq_sigma-50, rfreq_sigma+50], pass_zero=False, fs=srate)
 sigma_band_data = sig.filtfilt(sigma_fir_coeffs, 1.0, MEG_data)
 
 # %%
@@ -341,9 +344,8 @@ for i in range(len(not_outliers)):
 
 
 if(subject == 'S3'):
+    # longer for more noisy signal
     not_outliers_len = 50
-elif(subject == 'S5'):
-    not_outliers_len = 1
 else:
     not_outliers_len = 20
 
@@ -423,13 +425,17 @@ marker = marker_no_outliers
 # plot broadband evoked response
 
 data_y = broad_band_trials.mean(-1)
-plt.plot(whole_trial_t, data_y)
+
 plt_header('Average of broadband trials, N20 response, n = %d' % len(broad_band_trials.T))
+plt.axvline(20, linewidth=1, color='silver')
+plt.plot(whole_trial_t, data_y)
+plt.axvline(burst_time_start, color='gray', linestyle=':')
+plt.axvline(burst_time_end, color='gray', linestyle=':')
 plt.xlabel('t [ms]')
 plt.ylabel(unit)
 plt.ylim((-600, 600))
-plt.xlim((0, 100))
-plt.grid()
+plt.xlim((0, 80))
+plt.grid(axis='y')
 plt_show_save_fig()
 
 # %%
@@ -437,22 +443,29 @@ plt_show_save_fig()
 
 sigma_band_trials_mean = np.mean(sigma_band_trials, axis=-1)
 
-sigma_rms_st = np.sqrt(np.mean(sigma_band_trials[srate*15//1000:srate*30//1000]**2, axis=0))
-noise_rms_st = np.sqrt(np.mean(sigma_band_trials[srate*50//1000:srate*100//1000]**2, axis=0))
+bts = burst_time_start
+bte = burst_time_end
+
+sigma_rms_st = np.sqrt(np.mean(sigma_band_trials[srate*bts//1000:srate*bte//1000]**2, axis=0))
+noise_rms_st = np.sqrt(np.mean(sigma_band_trials[srate*50//1000:srate*80//1000]**2, axis=0))
 snnr_st = np.mean(sigma_rms_st/noise_rms_st)
 
-sigma_rms_er = np.sqrt(np.mean(sigma_band_trials[srate*15//1000:srate*30//1000]**2))
-noise_rms_er = np.sqrt(np.mean(sigma_band_trials[srate*50//1000:srate*100//1000]**2))
+sigma_rms_er = np.sqrt(np.mean(sigma_band_trials[srate*bts//1000:srate*bte//1000]**2))
+noise_rms_er = np.sqrt(np.mean(sigma_band_trials[srate*50//1000:srate*80//1000]**2))
 snnr_er = sigma_rms_er/noise_rms_er
 
 data_y = sigma_band_trials_mean
-plt.plot(whole_trial_t, data_y, label='sigma burst\nsnnr st: %6.3f\nsnnr er: %.3f' % (snnr_st, snnr_er))
+
 plt_header('Sigma burst, average of trials, n = %d' % len(sigma_band_trials.T))
+plt.axvline(20, linewidth=1, color='silver')
+plt.plot(whole_trial_t, data_y, label='sigma burst\nsnnr st: %6.3f\nsnnr er: %.3f' % (snnr_st, snnr_er))
+plt.axvline(burst_time_start, color='gray', linestyle=':')
+plt.axvline(burst_time_end, color='gray', linestyle=':')
 plt.xlabel('t [ms]')
 plt.ylabel(unit)
 plt.ylim((-30, 30))
-plt.xlim((0, 100))
-plt.grid()
+plt.xlim((0, 80))
+plt.grid(axis='y')
 plt.legend(prop={'family': 'DejaVu Sans Mono'})
 plt_show_save_fig()
 
@@ -460,13 +473,17 @@ plt_show_save_fig()
 # plot sigma burst (high-frequency somatosensory evoked response)
 
 data_y = sigma_band_trials.std(-1)
-plt.plot(whole_trial_t, data_y)
+
 plt_header('Sigma burst, standard deviation of trials, n = %d' % len(sigma_band_trials.T))
+plt.axvline(20, linewidth=1, color='silver')
+plt.plot(whole_trial_t, data_y)
+plt.axvline(burst_time_start, color='gray', linestyle=':')
+plt.axvline(burst_time_end, color='gray', linestyle=':')
 plt.xlabel('t [ms]')
 plt.ylabel(unit)
 plt.ylim((0, 20))
-plt.xlim((0, 100))
-plt.grid()
+plt.xlim((0, 80))
+plt.grid(axis='y')
 plt_show_save_fig()
 
 # %%
@@ -481,7 +498,7 @@ limit = 40
 plt.pcolormesh(whole_trial_t, np.arange(len(data.T)), data.T, vmin=-limit, vmax=limit)
 plt.ylabel('Trial number')
 plt.xlabel('Time [ms]')
-plt.xlim(0,100)
+plt.xlim(0,80)
 clb = plt.colorbar(extend='both')
 clb.set_label(unit)
 plt_show_save_fig()
@@ -495,7 +512,7 @@ limit = 40
 plt.pcolormesh(whole_trial_t, np.arange(len(data.T)), data.T, vmin=-limit, vmax=limit)
 plt.ylabel('Trial number')
 plt.xlabel('Time [ms]')
-plt.xlim(0,100)
+plt.xlim(0,80)
 plt.ylim(start_trial,end_trial)
 clb = plt.colorbar(extend='both')
 clb.set_label(unit)

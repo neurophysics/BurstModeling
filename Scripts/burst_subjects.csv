@@ -1,0 +1,6 @@
+Subject,Freq_start,Freq_end,Time_start,Time_end
+S1,500,800,13,33
+S2,500,800,13,28
+S3,550,850,13,28
+S4,550,850,13,25
+S5,550,850,10,30
