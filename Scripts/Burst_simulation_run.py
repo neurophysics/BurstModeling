@@ -2,7 +2,7 @@
 """
 Burst_simulation_run.py
 Lukasz Radzinski
-Charite Neurophysics Group, Berlin
+Charité Neurophysics Group, Berlin
 Script for modeling
 sigma burst variability
 """
@@ -85,34 +85,27 @@ meg_data = meg_stim_data[0]
 marker = meet.getMarker(meg_stim_data[-1])
 
 # %%
-# set bandpass frequency range adjusted for every subject
-if(subject == 'S1' or subject == 'S2'):
-    sigma_lfreq = 450
-    sigma_rfreq = 850
-elif(subject == 'S3' or  subject == 'S4' or subject == 'S5'):
-    sigma_lfreq = 500
-    sigma_rfreq = 900
+burst_prop_df = pd.read_csv('burst_subjects.csv')
+
+lfreq_sigma = burst_prop_df[burst_prop_df['Subject']==subject]['Freq_start'].values[0]
+rfreq_sigma = burst_prop_df[burst_prop_df['Subject']==subject]['Freq_end'].values[0]
+
+burst_time_start = burst_prop_df[burst_prop_df['Subject']==subject]['Time_start'].values[0]
+burst_time_end = burst_prop_df[burst_prop_df['Subject']==subject]['Time_end'].values[0]
 
 # Hilbert transform
 meg_data_hilb = sig.hilbert(meg_data)
 
 # FIR filter
-sigma_fir_coeffs = sig.firwin(303, [sigma_lfreq, sigma_rfreq], pass_zero=False, fs=srate)
+# apply band-pass filter to extract
+# high-frequency band (sigma band)
+# extend the band ±50Hz to obtain
+# 3dB cutoff in the bandstop frequencies
+sigma_fir_coeffs = sig.firwin(303, [lfreq_sigma-50, rfreq_sigma+50], pass_zero=False, fs=srate)
 meg_sigma_data_hilb = sig.filtfilt(sigma_fir_coeffs, 1.0, meg_data_hilb)
 
-# %%
 # set sigma burst time window adjusted for every subject
-
-if(subject == 'S1'):
-    burst_win_ms = [13, 33]
-elif(subject == 'S2'):
-    burst_win_ms = [13, 28]
-elif(subject == 'S3'):
-    burst_win_ms = [13, 28]
-elif(subject == 'S4'):
-    burst_win_ms = [13, 25]
-elif(subject == 'S5'):
-    burst_win_ms = [10, 30]
+burst_win_ms = [burst_time_start, burst_time_end]
 
 # %%
 # extract trials
@@ -400,7 +393,7 @@ for fold in range(10):
             ax.set_xlabel('optimization epoch')
             ax.set_ylabel('loss')
             ax.xaxis.set_major_locator(plticker.MultipleLocator(10))
-            ax.yaxis.set_major_locator(plticker.MultipleLocator(0.25))
+            #ax.yaxis.set_major_locator(plticker.MultipleLocator(0.25))
             ax.grid(visible=True)
             ax.legend([f"run {i}" for i in range(len(runs_loss_curves))])
             plt_show_save_fig(fig_name_base+'_runs_curves')
