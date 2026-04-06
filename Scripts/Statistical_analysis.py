@@ -1,4 +1,13 @@
 # %%
+"""
+Statistical_analysis.py
+Lukasz Radzinski
+Charité Neurophysics Group, Berlin
+Script for statistical analysis
+of burst simulation results
+"""
+
+# %%
 import os
 import numpy as np
 import pandas as pd
@@ -12,7 +21,7 @@ plt.rcParams['figure.figsize'] = [12, 6]
 plt.rcParams['savefig.dpi'] = 600
 
 # %%
-data_folder = '../Results/burst_modeling/statistical_analysis_proper'
+data_folder = '../Results/burst_simulation_results'
 
 # %%
 df_S1 = pd.read_csv(os.path.join(data_folder, 'S1', 'S1_results.csv'))
@@ -125,7 +134,7 @@ df_pivot_res.style.apply(highlight_opt_params_diff,
                          axis=1).format({0: '{:.3f}', 2: '{:.3f}', 4: '{:.3f}', 6: '{:.3f}'})
 
 # %%
-# test for normality of the folds differences
+# test for normality of the models folds differences
 # if p > 0.05 we assume the distribution is normal
 
 print('%f' % shapiro(df_pivot[0] - df_pivot[2]).pvalue)
@@ -143,14 +152,7 @@ df_pivot_mean2.style.apply(highlight_opt_params_diff, axis=1).format(
     {0: '{:.3f}', 2: '{:.3f}', 4: '{:.3f}', 6: '{:.3f}'})
 
 # %%
-# Wilcoxon signed-rank test
-
-print(pg.wilcoxon(df_pivot_mean[2], df_pivot_mean[0], alternative='less').round(6))
-print(pg.wilcoxon(df_pivot_mean[4], df_pivot_mean[2], alternative='less').round(6))
-print(pg.wilcoxon(df_pivot_mean[6], df_pivot_mean[4], alternative='less').round(6))
-
-# %%
-# test for normality of the folds differences
+# test for normality of the models differences
 # if p > 0.05 we assume the distribution is normal
 
 print('%f' % shapiro(df_pivot_mean[0] - df_pivot_mean[2]).pvalue)
@@ -158,11 +160,18 @@ print('%f' % shapiro(df_pivot_mean[2] - df_pivot_mean[4]).pvalue)
 print('%f' % shapiro(df_pivot_mean[4] - df_pivot_mean[6]).pvalue)
 
 # %%
-# T-test for pairs
+# T-test for pairs, data should be normally distributed
 
 print(pg.ttest(df_pivot_mean[2], df_pivot_mean[0], paired=True, alternative='less')['p-val'].round(6))
 print(pg.ttest(df_pivot_mean[4], df_pivot_mean[2], paired=True, alternative='less')['p-val'].round(6))
 print(pg.ttest(df_pivot_mean[6], df_pivot_mean[4], paired=True, alternative='less')['p-val'].round(6))
+
+# %%
+# Wilcoxon signed-rank test, data does not need to be normally distributed
+
+print(pg.wilcoxon(df_pivot_mean[2], df_pivot_mean[0], alternative='less').round(6))
+print(pg.wilcoxon(df_pivot_mean[4], df_pivot_mean[2], alternative='less').round(6))
+print(pg.wilcoxon(df_pivot_mean[6], df_pivot_mean[4], alternative='less').round(6))
 
 # %%
 # Observed variability explanation [%]
