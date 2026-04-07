@@ -12,6 +12,7 @@ import os
 import meet
 import scipy
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy import signal as sig
 from BurstModel import BurstModel
@@ -22,9 +23,6 @@ import matplotlib.ticker as plticker
 
 plt.rcParams['figure.figsize'] = [12, 6]
 plt.rcParams['savefig.dpi'] = 600
-#plt.rcParams['axes.autolimit_mode'] = 'round_numbers'
-#plt.rcParams['axes.ymargin'] = 0.01
-#plt.rcParams['axes.xmargin'] = 0.01
 
 # %%
 # general settings
@@ -109,31 +107,28 @@ def percentile_sorting_mask(percentiled_signal, percentile_bin=10):
     return percentile_mask_list, trials_percentile_bins_names
 
 # %%
-sigma_freq_range_subj = {}
+burst_prop_df = pd.read_csv('burst_subjects.csv')
 
-sigma_freq_range_subj['S1'] = [450, 850]
-sigma_freq_range_subj['S2'] = [450, 850]
-sigma_freq_range_subj['S3'] = [500, 900]
-sigma_freq_range_subj['S4'] = [500, 900]
-sigma_freq_range_subj['S5'] = [500, 900]
+lfreq_sigma = burst_prop_df[burst_prop_df['Subject']==subject]['Freq_start'].values[0]
+rfreq_sigma = burst_prop_df[burst_prop_df['Subject']==subject]['Freq_end'].values[0]
 
-sigma_freq_range = sigma_freq_range_subj[subject]
+sigma_freq_range = [lfreq_sigma, rfreq_sigma]
+
+burst_time_start = burst_prop_df[burst_prop_df['Subject']==subject]['Time_start'].values[0]
+burst_time_end = burst_prop_df[burst_prop_df['Subject']==subject]['Time_end'].values[0]
+
+burst_win_ms = [burst_time_start, burst_time_end]
 
 # %%
 meg_data_hilb = sig.hilbert(meg_data)
 
-sigma_fir_coeffs = sig.firwin(303, sigma_freq_range, pass_zero=False, fs=srate)
+# FIR filter
+# apply band-pass filter to extract
+# high-frequency band (sigma band)
+# extend the band ±50Hz to obtain
+# 3dB cutoff in the bandstop frequencies
+sigma_fir_coeffs = sig.firwin(303, [lfreq_sigma-50, rfreq_sigma+50], pass_zero=False, fs=srate)
 meg_sigma_data = sig.filtfilt(sigma_fir_coeffs, 1.0, meg_data_hilb)
-
-# %%
-burst_win_ms_subj = {}
-burst_win_ms_subj['S1'] = [13, 33]
-burst_win_ms_subj['S2'] = [13, 28]
-burst_win_ms_subj['S3'] = [13, 28]
-burst_win_ms_subj['S4'] = [13, 25]
-burst_win_ms_subj['S5'] = [10, 30]
-
-burst_win_ms = burst_win_ms_subj[subject]
 
 # %%
 short_win_ms = [10,35]
@@ -170,7 +165,7 @@ model_variables_subj = {}
 model_variables_subj['S1'] = [1.394, 0.322, 0.000, 0.000, 0.519, 2.777] 
 model_variables_subj['S2'] = [2.163, 0.326, 0.000, 0.000, 0.252, 1.396]
 model_variables_subj['S3'] = [0.640, 0.385, 0.000, 0.000, 0.366, 2.031]
-model_variables_subj['S4'] = [0.546, 0.368, 0.000, 0.000, 0.492, 2.236]
+model_variables_subj['S4'] = [0.818, 0.354, 0.000, 0.000, 0.483, 2.140]
 model_variables_subj['S5'] = [0.510, 0.402, 0.000, 0.000, 0.667, 2.354]
 
 model_variables = model_variables_subj[subject]
@@ -218,10 +213,8 @@ axs[i][j].grid(axis='y')
 axs[i][j].set_ylabel(meg_unit, size=14)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
-axs[i][j].text(0.26, 0.64, 'I', fontsize=20, fontname='serif',
-            ha='center', va='center', transform=axs[i][j].transAxes)
-axs[i][j].text(0.69, 0.94, 'IIa', fontsize=20, fontname='serif',
-            ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.25, 0.54, 'rec.', fontsize=16, ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.68, 0.54, 'stat.', fontsize=16, ha='center', va='center', transform=axs[i][j].transAxes)
 axs[i][j].legend(loc='upper left', borderaxespad=0.2, fontsize=14)
 
 
@@ -240,10 +233,8 @@ axs[i][j].set_ylim(-75, 175)
 axs[i][j].grid(axis='y')
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
-axs[i][j].text(0.26, 0.64, 'I', fontsize=20, fontname='serif',
-            ha='center', va='center', transform=axs[i][j].transAxes)
-axs[i][j].text(0.69, 0.94, 'IIb', fontsize=20, fontname='serif',
-            ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.25, 0.54, 'rec.', fontsize=16, ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.68, 0.54, 'var.', fontsize=16, ha='center', va='center', transform=axs[i][j].transAxes)
 
 
 data_y = sigma_stat_medium_trials.real
@@ -261,14 +252,12 @@ axs[i][j].grid(axis='y')
 axs[i][j].set_ylabel(meg_unit, size=14)
 axs[i][j].set_xticks(t_ticks, labels=t_ticks_labels)
 axs[i][j].set_xlabel('                         trial time [ms]\n'
-'                                                             (relative true burst time [ms])',
+'                                                                (rec. analogous time [ms])',
                                                               loc='left', fontsize=14)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
-axs[i][j].text(0.26, 0.84, 'I', fontsize=20, fontname='serif',
-            ha='center', va='center', transform=axs[i][j].transAxes)
-axs[i][j].text(0.69, 0.84, 'IIa', fontsize=20, fontname='serif',
-            ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.25, 0.74, 'rec.', fontsize=16, ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.68, 0.74, 'stat.', fontsize=16, ha='center', va='center', transform=axs[i][j].transAxes)
 
 
 data_y = sigma_sim_medium_trials.real
@@ -285,19 +274,17 @@ axs[i][j].set_ylim(-125, 125)
 axs[i][j].grid(axis='y')
 axs[i][j].set_xticks(t_ticks, labels=t_ticks_labels)
 axs[i][j].set_xlabel('                         trial time [ms]\n'
-'                                                             (relative true burst time [ms])',
+'                                                                (rec. analogous time [ms])',
                                                               loc='left', fontsize=14)
 axs[i][j].tick_params(axis='y', labelsize=12)
 axs[i][j].tick_params(axis='x', labelsize=12)
-axs[i][j].text(0.26, 0.84, 'I', fontsize=20, fontname='serif',
-            ha='center', va='center', transform=axs[i][j].transAxes)
-axs[i][j].text(0.69, 0.84, 'IIb', fontsize=20, fontname='serif',
-            ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.25, 0.74, 'rec.', fontsize=16, ha='center', va='center', transform=axs[i][j].transAxes)
+axs[i][j].text(0.68, 0.74, 'var.', fontsize=16, ha='center', va='center', transform=axs[i][j].transAxes)
 
 fig.lines.append(
     plt.Line2D(
-        (0.508, 0.508),     # x in figure fraction (0 = left, 1 = right)
-        (0, 1),             # y from bottom to top of figure
+        (0.508, 0.508),
+        (0, 1),
         transform=fig.transFigure,
         color='black',
         linestyle='--',
@@ -320,7 +307,7 @@ axs[0].plot([], label='StDev(trials)', color='magenta')
 axs[0].plot(data_t, data_y, label='Avg(trials)', color='navy')
 axs[0].plot(data_t[:500], data_y[:500], color='lightgray')
 axs[0].set_xlim(0, 70)
-axs[0].tick_params(axis='x', labelsize=12)
+axs[0].tick_params(axis='x', labelbottom=False)
 axs[0].get_xaxis().set_major_locator(plticker.MultipleLocator(10))
 axs[0].set_ylim(-25, 75)
 axs[0].grid(axis='y')
@@ -348,7 +335,7 @@ axs[1].plot([], label='StDev(Env(trials))', color='magenta')
 axs[1].plot(data_t, data_y, label='Avg(Env(trials))', color='navy')
 axs[1].plot(data_t[:500], data_y[:500], color='lightgray')
 axs[1].set_xlim(0, 70)
-axs[1].tick_params(axis='x', labelsize=12)
+axs[1].tick_params(axis='x', labelbottom=False)
 axs[1].get_xaxis().set_major_locator(plticker.MultipleLocator(10))
 axs[1].set_ylim(0, 50)
 axs[1].grid(axis='y')
@@ -422,11 +409,9 @@ axs[2].tick_params(axis='x', labelsize=12)
 axs[2].set_xlabel('trial time [ms]', fontsize=14)
 
 for i in range(3):
-    axs[i].text(0.26, 0.85, 'I', fontsize=20, fontname='serif',
-             ha='center', va='center', transform=axs[i].transAxes)
+    axs[i].text(0.28, 0.85, 'rec.', fontsize=16, ha='center', va='center', transform=axs[i].transAxes)
 
-    axs[i].text(0.69, 0.85, 'II', fontsize=20, fontname='serif',
-             ha='center', va='center', transform=axs[i].transAxes)
+    axs[i].text(0.71, 0.85, 'stat.', fontsize=16, ha='center', va='center', transform=axs[i].transAxes)
 
 axs[0].text(-0.037, 0.85, 'A', fontsize=20,
             ha='center', va='center', transform=axs[0].transAxes)
@@ -450,7 +435,7 @@ axs[0].plot([], label='StDev(trials)', color='magenta')
 axs[0].plot(data_t, data_y, label='Avg(trials)', color='navy')
 axs[0].plot(data_t[:500], data_y[:500], color='lightgray')
 axs[0].set_xlim(0, 70)
-axs[0].tick_params(axis='x', labelsize=12)
+axs[0].tick_params(axis='x', labelbottom=False)
 axs[0].get_xaxis().set_major_locator(plticker.MultipleLocator(10))
 axs[0].set_ylim(-25, 75)
 axs[0].grid(axis='y')
@@ -478,7 +463,7 @@ axs[1].plot([], label='StDev(Env(trials))', color='magenta')
 axs[1].plot(data_t, data_y, label='Avg(Env(trials))', color='navy')
 axs[1].plot(data_t[:500], data_y[:500], color='lightgray')
 axs[1].set_xlim(0, 70)
-axs[1].tick_params(axis='x', labelsize=12)
+axs[1].tick_params(axis='x', labelbottom=False)
 axs[1].get_xaxis().set_major_locator(plticker.MultipleLocator(10))
 axs[1].set_ylim(0, 50)
 axs[1].grid(axis='y')
@@ -552,11 +537,9 @@ axs[2].tick_params(axis='x', labelsize=12)
 axs[2].set_xlabel('trial time [ms]', fontsize=14)
 
 for i in range(3):
-    axs[i].text(0.26, 0.85, 'I', fontsize=20, fontname='serif',
-             ha='center', va='center', transform=axs[i].transAxes)
+    axs[i].text(0.28, 0.85, 'rec.', fontsize=16, ha='center', va='center', transform=axs[i].transAxes)
 
-    axs[i].text(0.69, 0.85, 'II', fontsize=20, fontname='serif',
-             ha='center', va='center', transform=axs[i].transAxes)
+    axs[i].text(0.71, 0.85, 'var.', fontsize=16, ha='center', va='center', transform=axs[i].transAxes)
 
 axs[0].text(-0.037, 0.85, 'A', fontsize=20,
             ha='center', va='center', transform=axs[0].transAxes)
@@ -683,7 +666,7 @@ axs.xaxis.set_major_locator(plticker.MultipleLocator(1))
 ticks = axs.get_xticks().astype('int')
 ticks_labels = [str(i+sigma_sim_offset_ms)+'\n('+str(i)+')' for i in ticks]
 axs.set_xticks(ticks, ticks_labels)
-axs.set_xlabel('\nsimulated burst time [ms]\n(relative true burst time [ms])')
+axs.set_xlabel('\nsimulated burst time [ms]\n(recorded burst analogous time [ms])')
 axs.set_ylabel(meg_unit)
 axs.grid(visible=True)
 axs.legend()
@@ -731,8 +714,9 @@ axs[0].set_ylabel('trial number', fontsize=14)
 clb = fig.colorbar(img, extend='both')
 clb.set_label(meg_unit, fontsize=14)
 clb.ax.tick_params(labelsize=12)
-axs[0].set_xlim(0,70)
+axs[0].yaxis.set_major_locator(plticker.MultipleLocator(10))
 axs[0].set_ylim(ylim_0, ylim_1)
+axs[0].set_xlim(0,70)
 axs[0].tick_params(labelsize=12)
 
 data_t = data_t_medium_ms
@@ -745,8 +729,9 @@ axs[1].set_ylabel('trial number', fontsize=14)
 clb = fig.colorbar(img, extend='both')
 clb.set_label(meg_unit, fontsize=14)
 clb.ax.tick_params(labelsize=12)
-axs[1].set_xlim(0,70)
+axs[1].yaxis.set_major_locator(plticker.MultipleLocator(10))
 axs[1].set_ylim(ylim_0, ylim_1)
+axs[1].set_xlim(0,70)
 axs[1].tick_params(labelsize=12)
 
 data_t = data_t_medium_ms
@@ -760,8 +745,9 @@ axs[2].set_xlabel('trial time [ms]', fontsize=14)
 clb = fig.colorbar(img, extend='both')
 clb.set_label(meg_unit, fontsize=14)
 clb.ax.tick_params(labelsize=12)
-axs[2].set_xlim(0,70)
+axs[2].yaxis.set_major_locator(plticker.MultipleLocator(10))
 axs[2].set_ylim(ylim_0, ylim_1)
+axs[2].set_xlim(0,70)
 axs[2].tick_params(labelsize=12)
 
 fig.tight_layout()
