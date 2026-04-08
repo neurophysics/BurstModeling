@@ -143,7 +143,7 @@ model_variables = model_variables_subj[subject]
 div_pos_ms = div_pos*(burst_win_ms[1]-burst_win_ms[0])+burst_win_ms[0]
 
 # %%
-bm = BurstModel(data_t_medium_ms, sigma_medium_trials, burst_win_ms, sigma_sim_offset_ms, srate, seed=60)
+bm = BurstModel(data_t_medium_ms, sigma_medium_trials, burst_win_ms, sigma_sim_offset_ms, srate)
 
 [loss, division_curve, later_comp_sigma_er, lcabs, earlier_comp_sigma_er, ecabs, sigma_bursts_sim,
 sigma_sim_medium_trials] = [i.numpy() for i in bm.calculate_model_output(model_variables)]
@@ -704,11 +704,11 @@ for k in range(4):
     axs[i][j].text(0.15, 0.86, 'rec.', fontsize=16, ha='center', va='center',
                    transform=axs[i][j].transAxes, c='white')
 
-    axs[i][j].text(0.45, 0.86, 'var.', fontsize=16,
-                ha='center', va='center', transform=axs[i][j].transAxes, c='white')
+    axs[i][j].text(0.45, 0.86, 'var.', fontsize=16, ha='center', va='center',
+                   transform=axs[i][j].transAxes, c='white')
 
-    axs[i][j].text(0.75, 0.86, 'stat.', fontsize=16,
-                ha='center', va='center', transform=axs[i][j].transAxes, c='white')
+    axs[i][j].text(0.75, 0.86, 'stat.', fontsize=16, ha='center', va='center',
+                   transform=axs[i][j].transAxes, c='white')
 
 fig.tight_layout()
 plt_show_save_fig(subject+'_long')
@@ -837,11 +837,8 @@ for k in range(4):
     axs[i][j].text(0.22, 0.86, 'rec.', fontsize=16, ha='center', va='center',
                    transform=axs[i][j].transAxes, c='white')
 
-    axs[i][j].text(0.65, 0.86, 'var.', fontsize=16,
-                ha='center', va='center', transform=axs[i][j].transAxes, c='white')
-
-    #axs[i][j].text(0.75, 0.86, 'stat.', fontsize=16,
-    #            ha='center', va='center', transform=axs[i][j].transAxes, c='white')
+    axs[i][j].text(0.65, 0.86, 'var.', fontsize=16, ha='center', va='center',
+                   transform=axs[i][j].transAxes, c='white')
 
 fig.tight_layout()
 plt_show_save_fig(subject+'_short')

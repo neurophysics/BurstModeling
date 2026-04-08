@@ -173,7 +173,7 @@ model_variables = model_variables_subj[subject]
 div_pos_ms = div_pos*(burst_win_ms[1]-burst_win_ms[0])+burst_win_ms[0]
 
 # %%
-bm = BurstModel(data_t_medium_ms, sigma_medium_trials, burst_win_ms, sigma_sim_offset_ms, srate, seed=60)
+bm = BurstModel(data_t_medium_ms, sigma_medium_trials, burst_win_ms, sigma_sim_offset_ms, srate)
 
 [loss, division_curve, later_comp_sigma_er, lcabs, earlier_comp_sigma_er, ecabs, sigma_bursts_sim,
 sigma_sim_medium_trials] = [i.numpy() for i in bm.calculate_model_output(model_variables)]
@@ -181,6 +181,10 @@ sigma_sim_medium_trials] = [i.numpy() for i in bm.calculate_model_output(model_v
 model_out_static = bm.calculate_model_output([10,0,0,0,0,0])
 sigma_stat_medium_trials = model_out_static[-1].numpy()
 evoked_response = model_out_static[2].numpy()
+
+bm_var_stat = BurstModel(data_t_medium_ms, sigma_sim_medium_trials, burst_win_ms, 60, srate)
+model_out_var_stat = bm_var_stat.calculate_model_output([10,0,0,0,0,0])
+sigma_var_stat_medium_trials = model_out_var_stat[-1].numpy()
 
 # %%
 print('ecabs: ', ecabs)
@@ -293,7 +297,7 @@ fig.lines.append(
 )
 
 fig.tight_layout()
-plt_show_save_fig()
+plt_show_save_fig('burst_superposition')
 
 # %%
 fig, axs = plt.subplots(3, 1, figsize=(16, 10))
@@ -421,7 +425,7 @@ axs[2].text(-0.037, 0.85, 'C', fontsize=20,
             ha='center', va='center', transform=axs[2].transAxes)
 
 fig.tight_layout()
-plt_show_save_fig()
+plt_show_save_fig('properties_measures_stat')
 
 # %%
 fig, axs = plt.subplots(3, 1, figsize=(16, 10))
@@ -549,7 +553,7 @@ axs[2].text(-0.037, 0.85, 'C', fontsize=20,
             ha='center', va='center', transform=axs[2].transAxes)
 
 fig.tight_layout()
-plt_show_save_fig()
+plt_show_save_fig('properties_measures_var')
 
 # %%
 sigma_sim_medium_trials_cmp = {}
@@ -640,7 +644,7 @@ for k in range(6):
     
 
 fig.tight_layout()
-plt_show_save_fig()
+plt_show_save_fig('mse_opt_parameters')
 
 # %%
 # plot extracted components
@@ -671,14 +675,14 @@ axs.set_ylabel(meg_unit)
 axs.grid(visible=True)
 axs.legend()
 
-plt_show_save_fig()
+plt_show_save_fig('division_curve')
 
 # %%
 # plot sigma burst single trials stack on each other
 
-plt_header('Subject S1, stacked trials')
+plt_header('Subject S1, stacked trials, recorded, variable, and static bursts')
 data_t = data_t_medium_ms
-data_y_input = sigma_sim_medium_trials
+data_y_input = sigma_var_stat_medium_trials
 data_y = data_y_input.real
 
 #limit = np.round(np.sqrt(np.mean(data_y**2))*3/10)*10
@@ -690,9 +694,10 @@ plt.ylabel('Trial number')
 plt.xlabel('Time [ms]')
 clb = plt.colorbar(extend='both')
 clb.set_label(meg_unit)
-plt.xlim(0,70)
+plt.xlim(0,100)
 plt.ylim(0, len(data_y.T))
-plt_show_save_fig()
+
+plt_show_save_fig('stacked_trials_all')
 
 # %%
 # plot sigma burst single trials stack on each other
@@ -716,13 +721,15 @@ clb.set_label(meg_unit, fontsize=14)
 clb.ax.tick_params(labelsize=12)
 axs[0].yaxis.set_major_locator(plticker.MultipleLocator(10))
 axs[0].set_ylim(ylim_0, ylim_1)
-axs[0].set_xlim(0,70)
+axs[0].set_xlim(0,100)
 axs[0].tick_params(labelsize=12)
+axs[0].text(0.15, 0.90, 'rec.', fontsize=16, ha='center', va='center', transform=axs[0].transAxes)
+
 
 data_t = data_t_medium_ms
-data_y = sigma_sim_medium_trials.real
+data_y = sigma_var_stat_medium_trials.real
 
-axs[1].set_title('B. Recorded burst and variable burst model superposed with ongoing noise', fontsize=16)
+axs[1].set_title('B. Recorded, variable, and static bursts superposed with ongoing noise', fontsize=16)
 img = axs[1].pcolormesh(data_t, np.arange(len(data_y.T)), data_y.T,
             rasterized=True, shading='nearest', cmap='coolwarm', vmin=-limit, vmax=limit)
 axs[1].set_ylabel('trial number', fontsize=14)
@@ -731,13 +738,17 @@ clb.set_label(meg_unit, fontsize=14)
 clb.ax.tick_params(labelsize=12)
 axs[1].yaxis.set_major_locator(plticker.MultipleLocator(10))
 axs[1].set_ylim(ylim_0, ylim_1)
-axs[1].set_xlim(0,70)
+axs[1].set_xlim(0,100)
 axs[1].tick_params(labelsize=12)
+axs[1].text(0.15, 0.90, 'rec.', fontsize=16, ha='center', va='center', transform=axs[1].transAxes)
+axs[1].text(0.45, 0.90, 'var.', fontsize=16, ha='center', va='center', transform=axs[1].transAxes)
+axs[1].text(0.75, 0.90, 'stat.', fontsize=16, ha='center', va='center', transform=axs[1].transAxes)
+
 
 data_t = data_t_medium_ms
-data_y = sigma_sim_medium_trials.real - sigma_medium_trials.real
+data_y = sigma_var_stat_medium_trials.real - sigma_medium_trials.real
 
-axs[2].set_title('C. Variable burst model without ongoing noise', fontsize=16)
+axs[2].set_title('C. Variable and static bursts without ongoing noise', fontsize=16)
 img = axs[2].pcolormesh(data_t, np.arange(len(data_y.T)), data_y.T,
             rasterized=True, shading='nearest', cmap='coolwarm', vmin=-limit, vmax=limit)
 axs[2].set_ylabel('trial number', fontsize=14)
@@ -747,10 +758,12 @@ clb.set_label(meg_unit, fontsize=14)
 clb.ax.tick_params(labelsize=12)
 axs[2].yaxis.set_major_locator(plticker.MultipleLocator(10))
 axs[2].set_ylim(ylim_0, ylim_1)
-axs[2].set_xlim(0,70)
+axs[2].set_xlim(0,100)
 axs[2].tick_params(labelsize=12)
+axs[2].text(0.45, 0.90, 'var.', fontsize=16, ha='center', va='center', transform=axs[2].transAxes)
+axs[2].text(0.75, 0.90, 'stat.', fontsize=16, ha='center', va='center', transform=axs[2].transAxes)
 
 fig.tight_layout()
-plt_show_save_fig()
+plt_show_save_fig('stacked_trials_comp')
 
 
