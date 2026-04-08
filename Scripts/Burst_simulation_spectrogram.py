@@ -2,9 +2,9 @@
 """
 Burst_simulation_spectrogram.py
 Lukasz Radzinski
-Charite Neurophysics Group, Berlin
-Script for spectrogram analysis
-of simulated burst
+Charité Neurophysics Group, Berlin
+Script for analysis of burst
+time-frequency resolved data
 """
 
 # %%
@@ -13,6 +13,7 @@ import sys
 import meet
 import scipy
 import numpy as np
+import pandas as pd
 from tqdm import trange
 import matplotlib.pyplot as plt
 from scipy import signal as sig
@@ -25,9 +26,6 @@ import helper_scripts.helper_functions as helper_functions
 
 plt.rcParams['figure.figsize'] = [12, 6]
 plt.rcParams['savefig.dpi'] = 600
-#plt.rcParams['axes.autolimit_mode'] = 'round_numbers'
-#plt.rcParams['axes.ymargin'] = 0.01
-#plt.rcParams['axes.xmargin'] = 0.01
 
 # %%
 # general settings
@@ -86,31 +84,28 @@ meg_data = meg_stim_data[0]
 marker = meet.getMarker(meg_stim_data[-1])
 
 # %%
-sigma_freq_range_subj = {}
+burst_prop_df = pd.read_csv('burst_subjects.csv')
 
-sigma_freq_range_subj['S1'] = [400, 900]
-sigma_freq_range_subj['S2'] = [400, 900]
-sigma_freq_range_subj['S3'] = [450, 950]
-sigma_freq_range_subj['S4'] = [450, 950]
-sigma_freq_range_subj['S5'] = [450, 950]
+lfreq_sigma = burst_prop_df[burst_prop_df['Subject']==subject]['Freq_start'].values[0]
+rfreq_sigma = burst_prop_df[burst_prop_df['Subject']==subject]['Freq_end'].values[0]
 
-sigma_freq_range = sigma_freq_range_subj[subject]
+sigma_freq_range = [lfreq_sigma, rfreq_sigma]
+
+burst_time_start = burst_prop_df[burst_prop_df['Subject']==subject]['Time_start'].values[0]
+burst_time_end = burst_prop_df[burst_prop_df['Subject']==subject]['Time_end'].values[0]
+
+burst_win_ms = [burst_time_start, burst_time_end]
 
 # %%
 meg_data_hilb = sig.hilbert(meg_data)
 
-sigma_fir_coeffs = sig.firwin(303, sigma_freq_range, pass_zero=False, fs=srate)
+# FIR filter
+# apply band-pass filter to extract
+# high-frequency band (sigma band)
+# extend the band ±100Hz to obtain
+# wider burst band shown on the TF plot
+sigma_fir_coeffs = sig.firwin(303, [lfreq_sigma-100, rfreq_sigma+100], pass_zero=False, fs=srate)
 meg_sigma_data = sig.filtfilt(sigma_fir_coeffs, 1.0, meg_data_hilb)
-
-# %%
-burst_win_ms_subj = {}
-burst_win_ms_subj['S1'] = [13, 33]
-burst_win_ms_subj['S2'] = [13, 28]
-burst_win_ms_subj['S3'] = [13, 28]
-burst_win_ms_subj['S4'] = [13, 25]
-burst_win_ms_subj['S5'] = [10, 30]
-
-burst_win_ms = burst_win_ms_subj[subject]
 
 # %%
 medium_win_ms = [0,100]
@@ -137,10 +132,10 @@ data_t_burst_sim_ms = data_t_burst_ms + sigma_sim_offset_ms
 # %%
 model_variables_subj = {}
 
-model_variables_subj['S1'] = [1.394, 0.322, 0.000, 0.000, 0.519, 2.777] 
+model_variables_subj['S1'] = [1.394, 0.322, 0.000, 0.000, 0.519, 2.777]
 model_variables_subj['S2'] = [2.163, 0.326, 0.000, 0.000, 0.252, 1.396]
 model_variables_subj['S3'] = [0.640, 0.385, 0.000, 0.000, 0.366, 2.031]
-model_variables_subj['S4'] = [0.546, 0.368, 0.000, 0.000, 0.492, 2.236]
+model_variables_subj['S4'] = [0.818, 0.354, 0.000, 0.000, 0.483, 2.140]
 model_variables_subj['S5'] = [0.510, 0.402, 0.000, 0.000, 0.667, 2.354]
 
 model_variables = model_variables_subj[subject]
@@ -155,6 +150,7 @@ sigma_sim_medium_trials] = [i.numpy() for i in bm.calculate_model_output(model_v
 
 model_out_static = bm.calculate_model_output([10,0,0,0,0,0])
 sigma_stat_medium_trials = model_out_static[-1].numpy()
+sigma_bursts_stat = model_out_static[-2].numpy()
 evoked_response = model_out_static[2].numpy()
 
 # %%
@@ -182,11 +178,17 @@ burst_st_smpl = np.array(burst_st_smpl)
 
 burst_sim_st_smpl = burst_st_smpl+sigma_sim_offset_ms*srate//1000
 
+burst_stat_st_smpl = burst_st_smpl+60*srate//1000
+
 # %%
 brb_sim_st_full_trials = brb_st_full_trials.copy()
 
 brb_sim_st_full_trials[burst_sim_st_smpl[0]:burst_sim_st_smpl[1]] = (
 brb_sim_st_full_trials[burst_sim_st_smpl[0]:burst_sim_st_smpl[1]] + sigma_bursts_sim)
+
+
+brb_sim_st_full_trials[burst_stat_st_smpl[0]:burst_stat_st_smpl[1]] = (
+brb_sim_st_full_trials[burst_stat_st_smpl[0]:burst_stat_st_smpl[1]] + sigma_bursts_stat)
 
 brb_st_full_trials = brb_sim_st_full_trials
 
@@ -318,7 +320,7 @@ for i in range(len(coords_ref_resampled[0])):
 for i in range(len(coords_time_targ)):
     tf_processed_targ[i] /= np.diff(coords_time_targ[i])[0]
 
-# extract waves
+# reconstruct waves
 tf_waves_targ = tf_processed_targ.copy()
 for i in range(len(tf_waves_targ)):
     tf_waves_targ[i] = tf_waves_targ[i]*np.exp(2j*np.pi*fftfreqs[sampling_y][i]*coords_time_targ_org[i]/srate)
@@ -328,7 +330,7 @@ for i in range(len(tf_waves_targ)):
 for i in range(len(coords_time_ref)):
     tf_processed_ref[i] /= np.diff(coords_time_ref[i])[0]
 
-# extract waves
+# reconstruct waves
 tf_waves_ref = tf_processed_ref.copy()
 for i in range(len(tf_waves_ref)):
     tf_waves_ref[i] = tf_waves_ref[i]*np.exp(2j*np.pi*fftfreqs[sampling_y][i]*coords_time_ref_org[i]/srate)
@@ -454,7 +456,7 @@ avg_env_boot_stat = []
 std_env_boot_stat = []
 std_boot_stat = []
 
-for _ in trange(1000):
+for _ in trange(200):
     idx1 = np.random.choice(all_tf.shape[0], size=tf_targ_resampled.shape[0],
             replace=True)
     idx2 = np.random.choice(all_tf.shape[0], size=tf_ref_resampled.shape[0],
@@ -590,35 +592,62 @@ rect_patch = Patch(
 
 plt.rcParams['image.cmap'] = 'CMRmap'
 fig, axs = plt.subplots(2, 2, figsize=(16, 9))
-plt_header('Time-frequency resolved data, recorded burst (I) vs. variable burst model (II), subject ' + subject,
+plt_header('Time-frequency resolved data: recorded, variable, and static bursts, subject ' + subject,
             use_suptitle=True, fontsize=18)
 
 i,j=0,0
 data_y = env_avg_out_interp
-axs[i][j].set_title('A. Env(Avg(trials))', fontsize=16)
+axs[i][j].set_title('A. |Avg(trials)| = average phase-locked response', fontsize=16)
 img = axs[i][j].pcolormesh(data_t_st_targ_ms, wanted_frequencies, data_y, vmin=0, vmax=80)
 axs[i][j].contour(data_t_st_targ_ms, wanted_frequencies, env_avg_p_val_interp, levels=[0.05],
                   colors='limegreen', linewidths=1)
 axs[i][j].grid(visible=True, which='both', c='gray')
 axs[i][j].set_ylabel('frequency [Hz]', fontsize=14)
-axs[i][j].set_xlabel('trial time [ms]', fontsize=14)
+#axs[i][j].set_xlabel('trial time [ms]', fontsize=14)
 clb = fig.colorbar(img, extend='max')
 clb.set_label('SNNR [fT/fT]', fontsize=14)
 clb.ax.tick_params(labelsize=12)
 axs[i][j].set_yscale('log')
 axs[i][j].get_yaxis().set_minor_formatter(plticker.ScalarFormatter())
 axs[i][j].get_yaxis().set_major_formatter(plticker.ScalarFormatter())
+axs[i][j].tick_params(axis='x', which='both', labelbottom=False)
 axs[i][j].set_ylim([200,2000])
-axs[i][j].set_xlim([0,70])
+axs[i][j].set_xlim([0,100])
 axs[i][j].xaxis.set_major_locator(plticker.MultipleLocator(10))
 axs[i][j].tick_params(which='both', labelsize=12)
-axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white', framealpha=0.3, loc='upper right')
+axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white',
+                 framealpha=0.3, loc='upper right', bbox_to_anchor=(1.012, 1.02))
 
 i,j=0,1
 data_y = 20*np.log10(np.clip(std_out_interp, sys.float_info.min, None))
-axs[i][j].set_title('B. StDev(trials)', fontsize=16)
+axs[i][j].set_title('B. StDev(Re(trials)) = single-trial variability', fontsize=16)
 img = axs[i][j].pcolormesh(data_t_st_targ_ms, wanted_frequencies, data_y, vmin=0, vmax=4)
 axs[i][j].contour(data_t_st_targ_ms, wanted_frequencies, std_p_val_interp, levels=[0.05],
+                  colors='limegreen', linewidths=1)
+axs[i][j].grid(visible=True, which='both', c='gray')
+#axs[i][j].set_ylabel('frequency [Hz]', fontsize=14)
+#axs[i][j].set_xlabel('trial time [ms]', fontsize=14)
+clb = fig.colorbar(img, extend='both')
+clb.set_label('SNNR [dB]', fontsize=14)
+clb.ax.tick_params(labelsize=12)
+axs[i][j].set_yscale('log')
+axs[i][j].get_yaxis().set_minor_formatter(plticker.ScalarFormatter())
+axs[i][j].get_yaxis().set_major_formatter(plticker.ScalarFormatter())
+axs[i][j].tick_params(axis='y', which='both', labelleft=False)
+axs[i][j].tick_params(axis='x', which='both', labelbottom=False)
+axs[i][j].set_ylim([200,2000])
+axs[i][j].set_xlim([0,100])
+axs[i][j].xaxis.set_major_locator(plticker.MultipleLocator(10))
+axs[i][j].tick_params(which='both', labelsize=12)
+axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white',
+                 framealpha=0.3, loc='upper right', bbox_to_anchor=(1.012, 1.02))
+
+
+i,j=1,0
+data_y = 20*np.log10(np.clip(avg_env_out_interp, sys.float_info.min, None))
+axs[i][j].set_title('C. Avg(|trials|) = average phase-insensitive response', fontsize=16)
+img = axs[i][j].pcolormesh(data_t_st_targ_ms, wanted_frequencies, data_y, vmin=0, vmax=8)
+axs[i][j].contour(data_t_st_targ_ms, wanted_frequencies, avg_env_p_val_interp, levels=[0.05],
                   colors='limegreen', linewidths=1)
 axs[i][j].grid(visible=True, which='both', c='gray')
 axs[i][j].set_ylabel('frequency [Hz]', fontsize=14)
@@ -626,19 +655,130 @@ axs[i][j].set_xlabel('trial time [ms]', fontsize=14)
 clb = fig.colorbar(img, extend='both')
 clb.set_label('SNNR [dB]', fontsize=14)
 clb.ax.tick_params(labelsize=12)
+clb.ax.yaxis.set_major_locator(plticker.MultipleLocator(1))
 axs[i][j].set_yscale('log')
 axs[i][j].get_yaxis().set_minor_formatter(plticker.ScalarFormatter())
 axs[i][j].get_yaxis().set_major_formatter(plticker.ScalarFormatter())
 axs[i][j].set_ylim([200,2000])
+axs[i][j].set_xlim([0,100])
+axs[i][j].xaxis.set_major_locator(plticker.MultipleLocator(10))
+axs[i][j].tick_params(which='both', labelsize=12)
+axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white',
+                 framealpha=0.3, loc='upper right', bbox_to_anchor=(1.012, 1.02))
+
+
+i,j=1,1
+data_y = 20*np.log10(np.clip(std_env_out_interp, sys.float_info.min, None))
+axs[i][j].set_title('D. StDev(|trials|) = single-trial magnitude variability', fontsize=16)
+img = axs[i][j].pcolormesh(data_t_st_targ_ms, wanted_frequencies, data_y, vmin=0, vmax=6)
+axs[i][j].contour(data_t_st_targ_ms, wanted_frequencies, std_env_p_val_interp, levels=[0.05],
+                  colors='limegreen', linewidths=1)
+axs[i][j].grid(visible=True, which='both', c='gray')
+#axs[i][j].set_ylabel('frequency [Hz]', fontsize=14)
+axs[i][j].set_xlabel('trial time [ms]', fontsize=14)
+clb = fig.colorbar(img, extend='both')
+clb.set_label('SNNR [dB]', fontsize=14)
+clb.ax.tick_params(labelsize=12)
+axs[i][j].set_yscale('log')
+axs[i][j].get_yaxis().set_minor_formatter(plticker.ScalarFormatter())
+axs[i][j].get_yaxis().set_major_formatter(plticker.ScalarFormatter())
+axs[i][j].tick_params(axis='y', which='both', labelleft=False)
+axs[i][j].set_ylim([200,2000])
+axs[i][j].set_xlim([0,100])
+axs[i][j].xaxis.set_major_locator(plticker.MultipleLocator(10))
+axs[i][j].tick_params(which='both', labelsize=12)
+axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white',
+                 framealpha=0.3, loc='upper right', bbox_to_anchor=(1.012, 1.02))
+
+for k in range(4):
+
+    if(k==0):
+        i,j = 0,0
+    elif(k==1):
+        i,j = 0,1
+    elif(k==2):
+        i,j = 1,0
+    elif(k==3):
+        i,j = 1,1
+
+    axs[i][j].text(0.15, 0.86, 'rec.', fontsize=16, ha='center', va='center',
+                   transform=axs[i][j].transAxes, c='white')
+
+    axs[i][j].text(0.45, 0.86, 'var.', fontsize=16,
+                ha='center', va='center', transform=axs[i][j].transAxes, c='white')
+
+    axs[i][j].text(0.75, 0.86, 'stat.', fontsize=16,
+                ha='center', va='center', transform=axs[i][j].transAxes, c='white')
+
+fig.tight_layout()
+plt_show_save_fig(subject+'_long')
+
+# %%
+from matplotlib.patches import Patch
+
+rect_patch = Patch(
+    facecolor='none',
+    edgecolor='limegreen',
+    linewidth=1.5,
+    label='p<0.05'
+)
+
+plt.rcParams['image.cmap'] = 'CMRmap'
+fig, axs = plt.subplots(2, 2, figsize=(16, 9))
+plt_header('Time-frequency resolved data: recorded and variable bursts, subject ' + subject,
+            use_suptitle=True, fontsize=18)
+
+i,j=0,0
+data_y = env_avg_out_interp
+axs[i][j].set_title('A. |Avg(trials)| = average phase-locked response', fontsize=16)
+img = axs[i][j].pcolormesh(data_t_st_targ_ms, wanted_frequencies, data_y, vmin=0, vmax=80)
+axs[i][j].contour(data_t_st_targ_ms, wanted_frequencies, env_avg_p_val_interp, levels=[0.05],
+                  colors='limegreen', linewidths=1)
+axs[i][j].grid(visible=True, which='both', c='gray')
+axs[i][j].set_ylabel('frequency [Hz]', fontsize=14)
+#axs[i][j].set_xlabel('trial time [ms]', fontsize=14)
+clb = fig.colorbar(img, extend='max')
+clb.set_label('SNNR [fT/fT]', fontsize=14)
+clb.ax.tick_params(labelsize=12)
+axs[i][j].set_yscale('log')
+axs[i][j].get_yaxis().set_minor_formatter(plticker.ScalarFormatter())
+axs[i][j].get_yaxis().set_major_formatter(plticker.ScalarFormatter())
+axs[i][j].tick_params(axis='x', which='both', labelbottom=False)
+axs[i][j].set_ylim([200,2000])
 axs[i][j].set_xlim([0,70])
 axs[i][j].xaxis.set_major_locator(plticker.MultipleLocator(10))
 axs[i][j].tick_params(which='both', labelsize=12)
-axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white', framealpha=0.3, loc='upper right')
+axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white',
+                 framealpha=0.3, loc='upper right', bbox_to_anchor=(1.012, 1.02))
+
+i,j=0,1
+data_y = 20*np.log10(np.clip(std_out_interp, sys.float_info.min, None))
+axs[i][j].set_title('B. StDev(Re(trials)) = single-trial variability', fontsize=16)
+img = axs[i][j].pcolormesh(data_t_st_targ_ms, wanted_frequencies, data_y, vmin=0, vmax=4)
+axs[i][j].contour(data_t_st_targ_ms, wanted_frequencies, std_p_val_interp, levels=[0.05],
+                  colors='limegreen', linewidths=1)
+axs[i][j].grid(visible=True, which='both', c='gray')
+#axs[i][j].set_ylabel('frequency [Hz]', fontsize=14)
+#axs[i][j].set_xlabel('trial time [ms]', fontsize=14)
+clb = fig.colorbar(img, extend='both')
+clb.set_label('SNNR [dB]', fontsize=14)
+clb.ax.tick_params(labelsize=12)
+axs[i][j].set_yscale('log')
+axs[i][j].get_yaxis().set_minor_formatter(plticker.ScalarFormatter())
+axs[i][j].get_yaxis().set_major_formatter(plticker.ScalarFormatter())
+axs[i][j].tick_params(axis='y', which='both', labelleft=False)
+axs[i][j].tick_params(axis='x', which='both', labelbottom=False)
+axs[i][j].set_ylim([200,2000])
+axs[i][j].set_xlim([0,70])
+axs[i][j].xaxis.set_major_locator(plticker.MultipleLocator(10))
+axs[i][j].tick_params(which='both', labelsize=12)
+axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white',
+                 framealpha=0.3, loc='upper right', bbox_to_anchor=(1.012, 1.02))
 
 
 i,j=1,0
 data_y = 20*np.log10(np.clip(avg_env_out_interp, sys.float_info.min, None))
-axs[i][j].set_title('C. Avg(Env(trials))', fontsize=16)
+axs[i][j].set_title('C. Avg(|trials|) = average phase-insensitive response', fontsize=16)
 img = axs[i][j].pcolormesh(data_t_st_targ_ms, wanted_frequencies, data_y, vmin=0, vmax=8)
 axs[i][j].contour(data_t_st_targ_ms, wanted_frequencies, avg_env_p_val_interp, levels=[0.05],
                   colors='limegreen', linewidths=1)
@@ -656,17 +796,18 @@ axs[i][j].set_ylim([200,2000])
 axs[i][j].set_xlim([0,70])
 axs[i][j].xaxis.set_major_locator(plticker.MultipleLocator(10))
 axs[i][j].tick_params(which='both', labelsize=12)
-axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white', framealpha=0.3, loc='upper right')
+axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white',
+                 framealpha=0.3, loc='upper right', bbox_to_anchor=(1.012, 1.02))
 
 
 i,j=1,1
 data_y = 20*np.log10(np.clip(std_env_out_interp, sys.float_info.min, None))
-axs[i][j].set_title('D. StDev(Env(trials))', fontsize=16)
+axs[i][j].set_title('D. StDev(|trials|) = single-trial magnitude variability', fontsize=16)
 img = axs[i][j].pcolormesh(data_t_st_targ_ms, wanted_frequencies, data_y, vmin=0, vmax=6)
 axs[i][j].contour(data_t_st_targ_ms, wanted_frequencies, std_env_p_val_interp, levels=[0.05],
                   colors='limegreen', linewidths=1)
 axs[i][j].grid(visible=True, which='both', c='gray')
-axs[i][j].set_ylabel('frequency [Hz]', fontsize=14)
+#axs[i][j].set_ylabel('frequency [Hz]', fontsize=14)
 axs[i][j].set_xlabel('trial time [ms]', fontsize=14)
 clb = fig.colorbar(img, extend='both')
 clb.set_label('SNNR [dB]', fontsize=14)
@@ -674,11 +815,13 @@ clb.ax.tick_params(labelsize=12)
 axs[i][j].set_yscale('log')
 axs[i][j].get_yaxis().set_minor_formatter(plticker.ScalarFormatter())
 axs[i][j].get_yaxis().set_major_formatter(plticker.ScalarFormatter())
+axs[i][j].tick_params(axis='y', which='both', labelleft=False)
 axs[i][j].set_ylim([200,2000])
 axs[i][j].set_xlim([0,70])
 axs[i][j].xaxis.set_major_locator(plticker.MultipleLocator(10))
 axs[i][j].tick_params(which='both', labelsize=12)
-axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white', framealpha=0.3, loc='upper right')
+axs[i][j].legend(handles=[rect_patch], fontsize=12, labelcolor='white',
+                 framealpha=0.3, loc='upper right', bbox_to_anchor=(1.012, 1.02))
 
 for k in range(4):
 
@@ -691,13 +834,16 @@ for k in range(4):
     elif(k==3):
         i,j = 1,1
 
-    axs[i][j].text(0.235, 0.85, 'I', fontsize=20, fontname='serif',
+    axs[i][j].text(0.22, 0.86, 'rec.', fontsize=16, ha='center', va='center',
+                   transform=axs[i][j].transAxes, c='white')
+
+    axs[i][j].text(0.65, 0.86, 'var.', fontsize=16,
                 ha='center', va='center', transform=axs[i][j].transAxes, c='white')
 
-    axs[i][j].text(0.675, 0.85, 'II', fontsize=20, fontname='serif',
-                ha='center', va='center', transform=axs[i][j].transAxes, c='white')
+    #axs[i][j].text(0.75, 0.86, 'stat.', fontsize=16,
+    #            ha='center', va='center', transform=axs[i][j].transAxes, c='white')
 
 fig.tight_layout()
-plt_show_save_fig(subject)
+plt_show_save_fig(subject+'_short')
 
 
