@@ -1,5 +1,7 @@
 # BurstModeling
 
+[![DOI](https://zenodo.org/badge/1205736159.svg)](https://doi.org/10.5281/zenodo.22547578)
+
 Scripts for sigma burst variability analysis and modeling
 
 Requirements:
